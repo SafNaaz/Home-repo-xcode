@@ -132,6 +132,73 @@ class PersistenceController: ObservableObject {
         }
     }
     
+    // MARK: - Shopping State Management
+    func saveShoppingState(_ state: ShoppingState) {
+        print("💾 Saving shopping state: \(state)")
+        
+        // First, clear any existing state
+        let request: NSFetchRequest<NSFetchRequestResult> = ShoppingStateEntity.fetchRequest()
+        let deleteRequest = NSBatchDeleteRequest(fetchRequest: request)
+        
+        do {
+            try container.viewContext.execute(deleteRequest)
+            print("🗑️ Cleared existing shopping state")
+        } catch {
+            print("Error clearing shopping state: \(error)")
+        }
+        
+        // Create new state entity
+        let context = container.viewContext
+        let stateEntity = ShoppingStateEntity(context: context)
+        stateEntity.id = UUID()
+        
+        // Convert state to string
+        let stateString: String
+        switch state {
+        case .empty: stateString = "empty"
+        case .generating: stateString = "generating"
+        case .listReady: stateString = "listReady"
+        case .shopping: stateString = "shopping"
+        }
+        
+        stateEntity.state = stateString
+        print("💾 Created state entity with value: \(stateString)")
+        
+        save()
+        print("✅ Shopping state saved successfully: \(state)")
+    }
+    
+    func fetchShoppingState() -> ShoppingState {
+        print("📂 Fetching shopping state from Core Data...")
+        let request: NSFetchRequest<ShoppingStateEntity> = ShoppingStateEntity.fetchRequest()
+        
+        do {
+            let entities = try container.viewContext.fetch(request)
+            print("📦 Found \(entities.count) shopping state entities")
+            
+            if let entity = entities.first,
+               let stateString = entity.state {
+                print("📱 Found saved state: \(stateString)")
+                
+                switch stateString {
+                case "empty": return .empty
+                case "generating": return .generating
+                case "listReady": return .listReady
+                case "shopping": return .shopping
+                default:
+                    print("⚠️ Unknown state string: \(stateString), defaulting to empty")
+                    return .empty
+                }
+            } else {
+                print("📱 No shopping state found, defaulting to empty")
+            }
+        } catch {
+            print("❌ Fetch shopping state error: \(error)")
+        }
+        
+        return .empty
+    }
+    
     // MARK: - Data Management
     func clearAllData() {
         // Clear fridge items
@@ -142,9 +209,14 @@ class PersistenceController: ObservableObject {
         let shoppingRequest: NSFetchRequest<NSFetchRequestResult> = ShoppingItemEntity.fetchRequest()
         let deleteShoppingRequest = NSBatchDeleteRequest(fetchRequest: shoppingRequest)
         
+        // Clear shopping state
+        let stateRequest: NSFetchRequest<NSFetchRequestResult> = ShoppingStateEntity.fetchRequest()
+        let deleteStateRequest = NSBatchDeleteRequest(fetchRequest: stateRequest)
+        
         do {
             try container.viewContext.execute(deleteFridgeRequest)
             try container.viewContext.execute(deleteShoppingRequest)
+            try container.viewContext.execute(deleteStateRequest)
             save()
         } catch {
             print("Clear all data error: \(error)")

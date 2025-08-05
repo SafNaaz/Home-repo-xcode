@@ -139,14 +139,10 @@ struct GeneratingShoppingView: View {
             }
             .padding()
         }
-        .toolbar {
-            ToolbarItem(placement: .navigationBarLeading) {
-                Button("Cancel") {
-                    fridgeManager.cancelShopping()
-                }
-                .foregroundColor(.red)
-            }
+        .navigationBarItems(leading: Button("Cancel") {
+            fridgeManager.cancelShopping()
         }
+        .foregroundColor(.red))
         .sheet(isPresented: $showingAddMiscItem) {
             AddMiscItemView(itemName: $miscItemName) {
                 if !miscItemName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -438,20 +434,15 @@ struct AddMiscItemView: View {
             }
             .navigationTitle("Add Misc Item")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") {
-                        presentationMode.wrappedValue.dismiss()
-                    }
+            .navigationBarItems(
+                leading: Button("Cancel") {
+                    presentationMode.wrappedValue.dismiss()
+                },
+                trailing: Button("Add") {
+                    onAdd()
                 }
-                
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Add") {
-                        onAdd()
-                    }
-                    .disabled(itemName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                }
-            }
+                .disabled(itemName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            )
         }
     }
 }

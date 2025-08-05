@@ -19,21 +19,33 @@ class FridgeManager: ObservableObject {
         let entities = persistenceController.fetchFridgeItems()
         print("📦 Found \(entities.count) items in Core Data")
         
-        fridgeItems = entities.map { entity in
+        fridgeItems = entities.compactMap { entity in
+            guard let name = entity.name,
+                  let sectionRaw = entity.section,
+                  let section = FridgeSection(rawValue: sectionRaw),
+                  let entityId = entity.id else {
+                print("❌ Invalid entity data, skipping")
+                return nil
+            }
+            
             let item = FridgeItem(
-                name: entity.name ?? "",
+                name: name,
                 quantity: entity.quantity,
-                section: FridgeSection(rawValue: entity.section ?? "") ?? .main,
+                section: section,
                 isCustom: entity.isCustom
             )
-            item.id = entity.id ?? UUID()
+            item.id = entityId
             item.purchaseHistory = entity.purchaseHistory ?? []
             item.lastUpdated = entity.lastUpdated ?? Date()
-            print("📦 Loaded item: \(item.name) with \(item.quantityPercentage)% stock")
+            print("📦 Loaded item: \(item.name) with \(item.quantityPercentage)% stock (ID: \(entityId))")
             return item
         }
         
         loadShoppingList()
+        
+        // Load shopping state from Core Data
+        shoppingState = persistenceController.fetchShoppingState()
+        print("📱 Restored shopping state: \(shoppingState)")
     }
     
     func refreshData() {
@@ -65,10 +77,23 @@ class FridgeManager: ObservableObject {
     }
     
     func addCustomItem(name: String, section: FridgeSection) {
-        let entity = persistenceController.createFridgeItem(name: name, section: section, quantity: 1.0, isCustom: true)
-        let newItem = FridgeItem(name: name, quantity: 1.0, section: section, isCustom: true)
-        newItem.id = entity.id ?? UUID()
-        fridgeItems.append(newItem)
+        print("➕ Adding custom item: \(name) to \(section.rawValue)")
+        
+        DispatchQueue.main.async {
+            let entity = self.persistenceController.createFridgeItem(name: name, section: section, quantity: 1.0, isCustom: true)
+            let newItem = FridgeItem(name: name, quantity: 1.0, section: section, isCustom: true)
+            
+            // Ensure the IDs match exactly
+            if let entityId = entity.id {
+                newItem.id = entityId
+                print("✅ Created item with ID: \(entityId)")
+            } else {
+                print("❌ Failed to get entity ID for: \(name)")
+            }
+            
+            self.fridgeItems.append(newItem)
+            print("✅ Added \(name) to local array")
+        }
     }
     
     func removeItem(_ item: FridgeItem) {
@@ -92,23 +117,33 @@ class FridgeManager: ObservableObject {
     }
     
     func updateItemQuantity(_ item: FridgeItem, quantity: Double) {
-        print("🔄 Updating item quantity: \(item.name) to \(Int(quantity * 100))%")
+        print("🔄 Updating item quantity: \(item.name) to \(Int(quantity * 100))% (ID: \(item.id))")
         
-        // Update Core Data entity
-        let entities = persistenceController.fetchFridgeItems()
-        if let entity = entities.first(where: { $0.id == item.id }) {
-            persistenceController.updateFridgeItem(entity, quantity: quantity)
-            print("✅ Core Data updated for: \(item.name)")
-        } else {
-            print("❌ Core Data entity not found for: \(item.name)")
+        DispatchQueue.main.async {
+            // Update Core Data entity
+            let entities = self.persistenceController.fetchFridgeItems()
+            print("🔍 Searching among \(entities.count) Core Data entities")
+            
+            if let entity = entities.first(where: { $0.id == item.id }) {
+                self.persistenceController.updateFridgeItem(entity, quantity: quantity)
+                print("✅ Core Data updated for: \(item.name) (Entity ID: \(entity.id?.uuidString ?? "nil"))")
+            } else {
+                print("❌ Core Data entity not found for: \(item.name) (Looking for ID: \(item.id))")
+                print("📋 Available entity IDs: \(entities.compactMap { $0.id?.uuidString }.joined(separator: ", "))")
+                
+                // Try to find by name as fallback
+                if let entity = entities.first(where: { $0.name == item.name }) {
+                    print("🔄 Found entity by name, updating ID mapping")
+                    item.id = entity.id ?? item.id
+                    self.persistenceController.updateFridgeItem(entity, quantity: quantity)
+                    print("✅ Core Data updated using name fallback for: \(item.name)")
+                }
+            }
+            
+            // Update local item
+            item.updateQuantity(quantity)
+            print("✅ Local item updated for: \(item.name)")
         }
-        
-        // Update local item
-        item.updateQuantity(quantity)
-        print("✅ Local item updated for: \(item.name)")
-        
-        // Force UI update to reflect changes
-        objectWillChange.send()
     }
     
     // MARK: - Shopping List Management
@@ -131,20 +166,23 @@ class FridgeManager: ObservableObject {
             print("➕ Added attention item: \(item.name) (\(item.quantityPercentage)%)")
         }
         
-        // Set state to generating
+        // Set state to generating and save
         shoppingState = .generating
+        persistenceController.saveShoppingState(shoppingState)
         print("✅ Shopping list generation started with \(shoppingList.items.count) items")
     }
     
     func finalizeShoppingList() {
         print("📋 Finalizing shopping list...")
         shoppingState = .listReady
+        persistenceController.saveShoppingState(shoppingState)
         print("✅ Shopping list finalized - now read-only")
     }
     
     func startShopping() {
         print("🛍️ Starting shopping trip...")
         shoppingState = .shopping
+        persistenceController.saveShoppingState(shoppingState)
         print("✅ Shopping started - checklist unlocked")
     }
     
@@ -167,6 +205,7 @@ class FridgeManager: ObservableObject {
         persistenceController.clearAllShoppingItems()
         shoppingList.items.removeAll()
         shoppingState = .empty
+        persistenceController.saveShoppingState(shoppingState)
         
         print("✅ Shopping completed and inventory restored")
     }
@@ -176,6 +215,7 @@ class FridgeManager: ObservableObject {
         persistenceController.clearAllShoppingItems()
         shoppingList.items.removeAll()
         shoppingState = .empty
+        persistenceController.saveShoppingState(shoppingState)
         print("✅ Shopping cancelled")
     }
     

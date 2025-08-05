@@ -67,7 +67,21 @@ struct FridgeView: View {
     @EnvironmentObject var fridgeManager: FridgeManager
     @State private var showingAddItem = false
     @State private var selectedSection: FridgeSection = .main
+    @State private var showingNewShoppingAlert = false
     @Binding var selectedTab: Int
+    
+    private func getShoppingStateMessage() -> String {
+        switch fridgeManager.shoppingState {
+        case .generating:
+            return "You're currently creating a shopping list. Would you like to continue with it or start fresh?"
+        case .listReady:
+            return "You have a shopping list ready to go. Would you like to continue with it or create a new one?"
+        case .shopping:
+            return "You're currently shopping! Would you like to continue your current trip or start a new shopping list?"
+        default:
+            return "You have an active shopping session. Continue or start new?"
+        }
+    }
     
     var body: some View {
         NavigationView {
@@ -109,34 +123,56 @@ struct FridgeView: View {
                 .listStyle(PlainListStyle())
             }
             .navigationTitle("My Fridge")
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button(action: {
-                        print("🔄 ContentView Generate button tapped")
-                        fridgeManager.startGeneratingShoppingList()
-                        selectedTab = 1 // Switch to Shopping tab
-                    }) {
-                        Text("Generate List")
-                    }
-                    .foregroundColor(.blue)
-                }
-                
-                ToolbarItem(placement: .navigationBarTrailing) {
+            .navigationBarItems(trailing: DarkModeToggle())
+            .overlay(
+                // Floating Action Button
+                VStack {
+                    Spacer()
                     HStack {
+                        Spacer()
                         Button(action: {
-                            print("🔄 Refreshing data from Core Data")
-                            fridgeManager.refreshData()
+                            print("🪄 Floating wand tapped")
+                            
+                            // Check if there's already an active shopping flow
+                            if fridgeManager.shoppingState != .empty {
+                                print("⚠️ Shopping flow already active, showing confirmation")
+                                showingNewShoppingAlert = true
+                            } else {
+                                print("✅ Starting new shopping list")
+                                fridgeManager.startGeneratingShoppingList()
+                                selectedTab = 1 // Switch to Shopping tab
+                            }
                         }) {
-                            Image(systemName: "arrow.clockwise")
-                                .foregroundColor(.blue)
+                            Image(systemName: "wand.and.rays")
+                                .font(.title2)
+                                .foregroundColor(.white)
+                                .frame(width: 56, height: 56)
+                                .background(Color.blue)
+                                .clipShape(Circle())
+                                .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
                         }
-                        
-                        DarkModeToggle()
+                        .padding(.trailing, 20)
+                        .padding(.bottom, 20)
                     }
                 }
+            )
+            .alert("Start New Shopping Trip?", isPresented: $showingNewShoppingAlert) {
+                Button("Cancel", role: .cancel) { }
+                Button("Continue Current", role: .cancel) {
+                    // Just switch to shopping tab to continue current flow
+                    selectedTab = 1
+                }
+                Button("Start New", role: .destructive) {
+                    fridgeManager.cancelShopping()
+                    fridgeManager.startGeneratingShoppingList()
+                    selectedTab = 1
+                }
+            } message: {
+                Text(getShoppingStateMessage())
             }
         }
     }
+    
 }
 
 struct SectionRowView: View {
@@ -192,13 +228,9 @@ struct SectionDetailView: View {
         }
         .navigationTitle(section.rawValue)
         .navigationBarTitleDisplayMode(.large)
-        .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Button("Add Item") {
-                    showingAddItem = true
-                }
-            }
-        }
+        .navigationBarItems(trailing: Button("Add Item") {
+            showingAddItem = true
+        })
         .sheet(isPresented: $showingAddItem) {
             AddItemView(section: section, newItemName: $newItemName) {
                 if !newItemName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -301,20 +333,15 @@ struct AddItemView: View {
             }
             .navigationTitle("Add Item")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") {
-                        presentationMode.wrappedValue.dismiss()
-                    }
+            .navigationBarItems(
+                leading: Button("Cancel") {
+                    presentationMode.wrappedValue.dismiss()
+                },
+                trailing: Button("Add") {
+                    onAdd()
                 }
-                
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Add") {
-                        onAdd()
-                    }
-                    .disabled(newItemName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                }
-            }
+                .disabled(newItemName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            )
         }
     }
 }

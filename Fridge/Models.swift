@@ -123,5 +123,13 @@ class ShoppingList: ObservableObject {
     }
 }
 
+// MARK: - Shopping Workflow States
+enum ShoppingState {
+    case empty           // No shopping list
+    case generating      // Generating/editing list
+    case listReady       // List created, not editable
+    case shopping        // Shopping in progress, checklist unlocked
+}
+
 // MARK: - Default Items (Removed - User will add their own items)
 // The app now starts with an empty database for users to populate with their own items

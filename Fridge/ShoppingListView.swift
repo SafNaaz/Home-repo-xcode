@@ -2,129 +2,366 @@ import SwiftUI
 
 struct ShoppingListView: View {
     @EnvironmentObject var fridgeManager: FridgeManager
-    @State private var showingAddTempItem = false
-    @State private var tempItemName = ""
-    @State private var showingCompletionAlert = false
     
     var body: some View {
         NavigationView {
             VStack {
-                if fridgeManager.shoppingList.items.isEmpty {
-                    EmptyShoppingListView()
-                } else {
-                    List {
-                        // Unchecked Items Section
-                        if !fridgeManager.shoppingList.uncheckedItems.isEmpty {
-                            Section("To Buy") {
-                                ForEach(fridgeManager.shoppingList.uncheckedItems) { item in
-                                    ShoppingItemRow(item: item)
-                                }
-                                .onDelete(perform: deleteUncheckedItems)
-                            }
-                        }
-                        
-                        // Checked Items Section
-                        if !fridgeManager.shoppingList.checkedItems.isEmpty {
-                            Section("Purchased") {
-                                ForEach(fridgeManager.shoppingList.checkedItems) { item in
-                                    ShoppingItemRow(item: item)
-                                }
-                                .onDelete(perform: deleteCheckedItems)
-                            }
-                        }
-                    }
-                    
-                    // Complete Shopping Button
-                    if !fridgeManager.shoppingList.checkedItems.isEmpty {
-                        Button(action: {
-                            showingCompletionAlert = true
-                        }) {
-                            HStack {
-                                Image(systemName: "checkmark.circle.fill")
-                                Text("Complete Shopping Trip")
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.green)
-                            .foregroundColor(.white)
-                            .cornerRadius(10)
-                        }
-                        .padding()
-                    }
+                switch fridgeManager.shoppingState {
+                case .empty:
+                    EmptyShoppingView()
+                case .generating:
+                    GeneratingShoppingView()
+                case .listReady:
+                    ReadyShoppingView()
+                case .shopping:
+                    ActiveShoppingView()
                 }
             }
-            .navigationTitle("Shopping List")
-            .toolbar {
-                ToolbarItemGroup(placement: .navigationBarTrailing) {
-                    Button("Add Misc") {
-                        showingAddTempItem = true
-                    }
-                    
-                    if fridgeManager.shoppingList.items.isEmpty {
-                        Button("Generate") {
-                            print("🔄 Toolbar Generate button tapped")
-                            fridgeManager.generateShoppingList()
-                        }
-                        .foregroundColor(.blue)
-                    }
-                }
-            }
-            .sheet(isPresented: $showingAddTempItem) {
-                AddTempItemView(tempItemName: $tempItemName) {
-                    if !tempItemName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        fridgeManager.addTemporaryItemToShoppingList(name: tempItemName.trimmingCharacters(in: .whitespacesAndNewlines))
-                        tempItemName = ""
-                    }
-                    showingAddTempItem = false
-                }
-            }
-            .alert("Complete Shopping Trip", isPresented: $showingCompletionAlert) {
-                Button("Cancel", role: .cancel) { }
-                Button("Complete") {
-                    fridgeManager.completeShoppingTrip()
-                }
-            } message: {
-                Text("This will restore all checked items to 100% stock and clear the shopping list.")
-            }
-        }
-    }
-    
-    private func deleteUncheckedItems(offsets: IndexSet) {
-        let uncheckedItems = fridgeManager.shoppingList.uncheckedItems
-        let itemsToDelete = offsets.compactMap { index in
-            index < uncheckedItems.count ? uncheckedItems[index] : nil
-        }
-        
-        for item in itemsToDelete {
-            // Delete from Core Data
-            let entities = PersistenceController.shared.fetchShoppingItems()
-            if let entity = entities.first(where: { $0.id == item.id }) {
-                PersistenceController.shared.deleteShoppingItem(entity)
-            }
-            // Remove from local list
-            fridgeManager.shoppingList.removeItem(item)
-        }
-    }
-    
-    private func deleteCheckedItems(offsets: IndexSet) {
-        let checkedItems = fridgeManager.shoppingList.checkedItems
-        let itemsToDelete = offsets.compactMap { index in
-            index < checkedItems.count ? checkedItems[index] : nil
-        }
-        
-        for item in itemsToDelete {
-            // Delete from Core Data
-            let entities = PersistenceController.shared.fetchShoppingItems()
-            if let entity = entities.first(where: { $0.id == item.id }) {
-                PersistenceController.shared.deleteShoppingItem(entity)
-            }
-            // Remove from local list
-            fridgeManager.shoppingList.removeItem(item)
+            .navigationTitle("Shopping")
         }
     }
 }
 
-struct ShoppingItemRow: View {
+// MARK: - Empty State
+struct EmptyShoppingView: View {
+    @EnvironmentObject var fridgeManager: FridgeManager
+    
+    var body: some View {
+        VStack(spacing: 30) {
+            Image(systemName: "cart")
+                .font(.system(size: 80))
+                .foregroundColor(.gray)
+            
+            Text("Ready to Shop?")
+                .font(.title)
+                .fontWeight(.bold)
+            
+            Text("Generate a shopping list based on items that need attention in your fridge.")
+                .font(.body)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal)
+            
+            VStack(spacing: 16) {
+                Button(action: {
+                    fridgeManager.startGeneratingShoppingList()
+                }) {
+                    HStack {
+                        Image(systemName: "wand.and.rays")
+                        Text("Generate Shopping List")
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.blue)
+                    .foregroundColor(.white)
+                    .cornerRadius(12)
+                }
+                
+                if fridgeManager.lowStockItemsCount > 0 {
+                    HStack {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundColor(.orange)
+                        Text("\(fridgeManager.lowStockItemsCount) items need attention")
+                            .font(.subheadline)
+                            .foregroundColor(.orange)
+                    }
+                }
+            }
+            .padding(.horizontal)
+        }
+        .padding()
+    }
+}
+
+// MARK: - Generating State
+struct GeneratingShoppingView: View {
+    @EnvironmentObject var fridgeManager: FridgeManager
+    @State private var showingAddMiscItem = false
+    @State private var miscItemName = ""
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            VStack(spacing: 12) {
+                Text("Review Your Shopping List")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                
+                Text("Items needing attention are listed below. Remove items you don't need or add misc items.")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            .padding()
+            .background(Color(.systemGray6))
+            
+            // Shopping List Items
+            List {
+                if !fridgeManager.shoppingList.items.isEmpty {
+                    Section("Items to Buy") {
+                        ForEach(fridgeManager.shoppingList.items) { item in
+                            GeneratingItemRow(item: item)
+                        }
+                    }
+                }
+            }
+            
+            // Action Buttons
+            VStack(spacing: 12) {
+                Button(action: {
+                    showingAddMiscItem = true
+                }) {
+                    HStack {
+                        Image(systemName: "plus.circle")
+                        Text("Add Misc Item")
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color(.systemGray5))
+                    .foregroundColor(.primary)
+                    .cornerRadius(10)
+                }
+                
+                Button(action: {
+                    fridgeManager.finalizeShoppingList()
+                }) {
+                    HStack {
+                        Image(systemName: "arrow.right.circle.fill")
+                        Text("Next - Create Checklist")
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.green)
+                    .foregroundColor(.white)
+                    .cornerRadius(10)
+                }
+                .disabled(fridgeManager.shoppingList.items.isEmpty)
+            }
+            .padding()
+        }
+        .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                Button("Cancel") {
+                    fridgeManager.cancelShopping()
+                }
+                .foregroundColor(.red)
+            }
+        }
+        .sheet(isPresented: $showingAddMiscItem) {
+            AddMiscItemView(itemName: $miscItemName) {
+                if !miscItemName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    fridgeManager.addTemporaryItemToShoppingList(name: miscItemName.trimmingCharacters(in: .whitespacesAndNewlines))
+                    miscItemName = ""
+                }
+                showingAddMiscItem = false
+            }
+        }
+    }
+}
+
+// MARK: - Ready State (Non-editable Checklist)
+struct ReadyShoppingView: View {
+    @EnvironmentObject var fridgeManager: FridgeManager
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            VStack(spacing: 12) {
+                Text("Shopping Checklist Ready")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                
+                Text("Your shopping list is ready. Start shopping to unlock the checklist.")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            .padding()
+            .background(Color(.systemGray6))
+            
+            // Read-only Checklist
+            List {
+                Section("Shopping List (\(fridgeManager.shoppingList.items.count) items)") {
+                    ForEach(fridgeManager.shoppingList.items) { item in
+                        ReadOnlyItemRow(item: item)
+                    }
+                }
+            }
+            
+            // Action Buttons
+            VStack(spacing: 12) {
+                Button(action: {
+                    fridgeManager.startShopping()
+                }) {
+                    HStack {
+                        Image(systemName: "cart.fill")
+                        Text("Start Shopping")
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.blue)
+                    .foregroundColor(.white)
+                    .cornerRadius(10)
+                }
+                
+                Button(action: {
+                    fridgeManager.cancelShopping()
+                }) {
+                    Text("Cancel Shopping")
+                        .foregroundColor(.red)
+                }
+            }
+            .padding()
+        }
+    }
+}
+
+// MARK: - Active Shopping State
+struct ActiveShoppingView: View {
+    @EnvironmentObject var fridgeManager: FridgeManager
+    @State private var showingCompleteAlert = false
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            VStack(spacing: 12) {
+                Text("Shopping in Progress")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                
+                Text("Check off items as you shop. Complete when done.")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            .padding()
+            .background(Color(.systemGray6))
+            
+            // Active Checklist
+            List {
+                Section("Shopping Checklist") {
+                    ForEach(fridgeManager.shoppingList.items) { item in
+                        ActiveItemRow(item: item)
+                    }
+                }
+            }
+            
+            // Completion Button
+            VStack(spacing: 12) {
+                Button(action: {
+                    showingCompleteAlert = true
+                }) {
+                    HStack {
+                        Image(systemName: "checkmark.circle.fill")
+                        Text("Complete Shopping")
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.green)
+                    .foregroundColor(.white)
+                    .cornerRadius(10)
+                }
+                
+                let checkedCount = fridgeManager.shoppingList.checkedItems.count
+                if checkedCount > 0 {
+                    Text("\(checkedCount) items will be restored to 100%")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .padding()
+        }
+        .alert("Complete Shopping Trip", isPresented: $showingCompleteAlert) {
+            Button("Cancel", role: .cancel) { }
+            Button("Complete & Restore") {
+                fridgeManager.completeAndRestoreShopping()
+            }
+        } message: {
+            let checkedCount = fridgeManager.shoppingList.checkedItems.count
+            Text("This will restore \(checkedCount) checked items to 100% stock and clear the shopping list.")
+        }
+    }
+}
+
+// MARK: - Item Row Views
+struct GeneratingItemRow: View {
+    @ObservedObject var item: ShoppingListItem
+    @EnvironmentObject var fridgeManager: FridgeManager
+    
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(item.name)
+                    .font(.headline)
+                
+                HStack {
+                    if item.isTemporary {
+                        Label("Misc Item", systemImage: "tag.fill")
+                            .font(.caption)
+                            .foregroundColor(.orange)
+                    } else if let fridgeItem = item.fridgeItem {
+                        Label(fridgeItem.section.rawValue, systemImage: fridgeItem.section.icon)
+                            .font(.caption)
+                            .foregroundColor(fridgeItem.section.color)
+                        
+                        Text("• \(fridgeItem.quantityPercentage)% left")
+                            .font(.caption)
+                            .foregroundColor(.red)
+                    }
+                }
+            }
+            
+            Spacer()
+            
+            Button(action: {
+                fridgeManager.removeItemFromShoppingList(item)
+            }) {
+                Image(systemName: "minus.circle.fill")
+                    .foregroundColor(.red)
+                    .font(.title2)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+struct ReadOnlyItemRow: View {
+    @ObservedObject var item: ShoppingListItem
+    
+    var body: some View {
+        HStack {
+            Image(systemName: "circle")
+                .foregroundColor(.gray)
+                .font(.title2)
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(item.name)
+                    .font(.headline)
+                
+                HStack {
+                    if item.isTemporary {
+                        Label("Misc Item", systemImage: "tag.fill")
+                            .font(.caption)
+                            .foregroundColor(.orange)
+                    } else if let fridgeItem = item.fridgeItem {
+                        Label(fridgeItem.section.rawValue, systemImage: fridgeItem.section.icon)
+                            .font(.caption)
+                            .foregroundColor(fridgeItem.section.color)
+                        
+                        Text("• \(fridgeItem.quantityPercentage)% left")
+                            .font(.caption)
+                            .foregroundColor(.red)
+                    }
+                }
+            }
+            
+            Spacer()
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+struct ActiveItemRow: View {
     @ObservedObject var item: ShoppingListItem
     @EnvironmentObject var fridgeManager: FridgeManager
     
@@ -161,96 +398,39 @@ struct ShoppingItemRow: View {
                             .font(.caption)
                             .foregroundColor(fridgeItem.section.color)
                         
-                        if fridgeItem.needsRestocking {
-                            Label("Low Stock", systemImage: "exclamationmark.triangle.fill")
-                                .font(.caption)
-                                .foregroundColor(.red)
-                        }
+                        Text("• \(fridgeItem.quantityPercentage)% left")
+                            .font(.caption)
+                            .foregroundColor(.red)
                     }
                 }
             }
             
             Spacer()
-            
-            if !item.isTemporary, let fridgeItem = item.fridgeItem {
-                Text("\(fridgeItem.quantityPercentage)%")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color(.systemGray5))
-                    .cornerRadius(8)
-            }
         }
         .padding(.vertical, 4)
     }
 }
 
-struct EmptyShoppingListView: View {
-    @EnvironmentObject var fridgeManager: FridgeManager
-    
-    var body: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "cart")
-                .font(.system(size: 60))
-                .foregroundColor(.gray)
-            
-            Text("Shopping List is Empty")
-                .font(.title2)
-                .fontWeight(.semibold)
-            
-            Text("Generate a shopping list based on low stock items or add temporary items manually.")
-                .font(.body)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal)
-            
-            VStack(spacing: 12) {
-                Button(action: {
-                    fridgeManager.generateShoppingList()
-                }) {
-                    HStack {
-                        Image(systemName: "wand.and.rays")
-                        Text("Generate Shopping List")
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.blue)
-                    .foregroundColor(.white)
-                    .cornerRadius(10)
-                }
-                
-                if fridgeManager.lowStockItemsCount > 0 {
-                    Text("\(fridgeManager.lowStockItemsCount) items need restocking")
-                        .font(.caption)
-                        .foregroundColor(.orange)
-                }
-            }
-            .padding(.horizontal)
-        }
-        .padding()
-    }
-}
-
-struct AddTempItemView: View {
-    @Binding var tempItemName: String
+// MARK: - Add Misc Item View
+struct AddMiscItemView: View {
+    @Binding var itemName: String
     let onAdd: () -> Void
     @Environment(\.presentationMode) var presentationMode
     
     var body: some View {
         NavigationView {
             VStack(spacing: 20) {
-                Text("Add Temporary Item")
+                Text("Add Misc Item")
                     .font(.headline)
                     .padding()
                 
-                Text("This item will be added to your shopping list but won't update your fridge inventory.")
+                Text("Add items that aren't tracked in your fridge inventory.")
                     .font(.body)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal)
                 
-                TextField("Item name (e.g., Cleaning supplies)", text: $tempItemName)
+                TextField("Item name (e.g., Cleaning supplies)", text: $itemName)
                     .textFieldStyle(RoundedBorderTextFieldStyle())
                     .padding(.horizontal)
                 
@@ -269,7 +449,7 @@ struct AddTempItemView: View {
                     Button("Add") {
                         onAdd()
                     }
-                    .disabled(tempItemName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .disabled(itemName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
         }

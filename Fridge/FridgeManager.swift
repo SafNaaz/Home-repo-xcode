@@ -5,6 +5,7 @@ import CoreData
 class FridgeManager: ObservableObject {
     @Published var fridgeItems: [FridgeItem] = []
     @Published var shoppingList = ShoppingList()
+    @Published var shoppingState: ShoppingState = .empty
     
     private let persistenceController = PersistenceController.shared
     
@@ -14,7 +15,10 @@ class FridgeManager: ObservableObject {
     
     // MARK: - Data Management
     private func loadData() {
+        print("📂 Loading data from Core Data...")
         let entities = persistenceController.fetchFridgeItems()
+        print("📦 Found \(entities.count) items in Core Data")
+        
         fridgeItems = entities.map { entity in
             let item = FridgeItem(
                 name: entity.name ?? "",
@@ -25,10 +29,16 @@ class FridgeManager: ObservableObject {
             item.id = entity.id ?? UUID()
             item.purchaseHistory = entity.purchaseHistory ?? []
             item.lastUpdated = entity.lastUpdated ?? Date()
+            print("📦 Loaded item: \(item.name) with \(item.quantityPercentage)% stock")
             return item
         }
         
         loadShoppingList()
+    }
+    
+    func refreshData() {
+        loadData()
+        objectWillChange.send()
     }
     
     private func loadShoppingList() {
@@ -62,67 +72,111 @@ class FridgeManager: ObservableObject {
     }
     
     func removeItem(_ item: FridgeItem) {
-        // Find and delete the Core Data entity
-        let entities = persistenceController.fetchFridgeItems()
-        if let entity = entities.first(where: { $0.id == item.id }) {
-            persistenceController.deleteFridgeItem(entity)
-        }
+        print("🗑️ Removing item: \(item.name)")
         
-        // Remove from local array
-        fridgeItems.removeAll { $0.id == item.id }
+        // Use DispatchQueue to ensure proper UI updates
+        DispatchQueue.main.async {
+            // Find and delete the Core Data entity
+            let entities = self.persistenceController.fetchFridgeItems()
+            if let entity = entities.first(where: { $0.id == item.id }) {
+                self.persistenceController.deleteFridgeItem(entity)
+                print("✅ Core Data entity deleted for: \(item.name)")
+            } else {
+                print("❌ Core Data entity not found for: \(item.name)")
+            }
+            
+            // Remove from local array on main thread
+            self.fridgeItems.removeAll { $0.id == item.id }
+            print("✅ Local item removed: \(item.name)")
+        }
     }
     
     func updateItemQuantity(_ item: FridgeItem, quantity: Double) {
+        print("🔄 Updating item quantity: \(item.name) to \(Int(quantity * 100))%")
+        
         // Update Core Data entity
         let entities = persistenceController.fetchFridgeItems()
         if let entity = entities.first(where: { $0.id == item.id }) {
             persistenceController.updateFridgeItem(entity, quantity: quantity)
+            print("✅ Core Data updated for: \(item.name)")
+        } else {
+            print("❌ Core Data entity not found for: \(item.name)")
         }
         
         // Update local item
         item.updateQuantity(quantity)
+        print("✅ Local item updated for: \(item.name)")
+        
+        // Force UI update to reflect changes
+        objectWillChange.send()
     }
     
     // MARK: - Shopping List Management
-    func generateShoppingList() {
-        print("🛒 Generating shopping list...")
-        print("📦 Total fridge items: \(fridgeItems.count)")
+    func startGeneratingShoppingList() {
+        print("🛒 Starting shopping list generation...")
         
         // Clear existing shopping list in Core Data
         persistenceController.clearAllShoppingItems()
         shoppingList.items.removeAll()
         
-        // Add items that need restocking (≤25%)
-        let lowStockItems = fridgeItems.filter { $0.needsRestocking }
-        print("📉 Low stock items found: \(lowStockItems.count)")
+        // Add items that need attention (≤25%) - sorted by urgency
+        let attentionItems = fridgeItems.filter { $0.needsRestocking }.sorted { $0.quantity < $1.quantity }
+        print("⚠️ Attention items found: \(attentionItems.count)")
         
-        for item in lowStockItems {
+        for item in attentionItems {
             let entity = persistenceController.createShoppingItem(name: item.name, fridgeItemId: item.id, isTemporary: false)
             let shoppingItem = ShoppingListItem(name: item.name, fridgeItem: item)
             shoppingItem.id = entity.id ?? UUID()
             shoppingList.addItem(shoppingItem)
-            print("➕ Added low stock item: \(item.name) (\(item.quantityPercentage)%)")
+            print("➕ Added attention item: \(item.name) (\(item.quantityPercentage)%)")
         }
         
-        // Add history-based suggestions (items purchased frequently)
-        let frequentItems = getFrequentlyPurchasedItems()
-        print("🔄 Frequent items found: \(frequentItems.count)")
+        // Set state to generating
+        shoppingState = .generating
+        print("✅ Shopping list generation started with \(shoppingList.items.count) items")
+    }
+    
+    func finalizeShoppingList() {
+        print("📋 Finalizing shopping list...")
+        shoppingState = .listReady
+        print("✅ Shopping list finalized - now read-only")
+    }
+    
+    func startShopping() {
+        print("🛍️ Starting shopping trip...")
+        shoppingState = .shopping
+        print("✅ Shopping started - checklist unlocked")
+    }
+    
+    func completeAndRestoreShopping() {
+        print("✅ Completing shopping trip and restoring items...")
         
-        for item in frequentItems {
-            // Only add if not already in the list
-            if !shoppingList.items.contains(where: { $0.fridgeItem?.id == item.id }) {
-                let entity = persistenceController.createShoppingItem(name: item.name, fridgeItemId: item.id, isTemporary: false)
-                let shoppingItem = ShoppingListItem(name: item.name, fridgeItem: item)
-                shoppingItem.id = entity.id ?? UUID()
-                shoppingList.addItem(shoppingItem)
-                print("➕ Added frequent item: \(item.name)")
+        // Update fridge items that were purchased
+        for item in shoppingList.items where item.isChecked && !item.isTemporary {
+            if let fridgeItem = item.fridgeItem {
+                let entities = persistenceController.fetchFridgeItems()
+                if let entity = entities.first(where: { $0.id == fridgeItem.id }) {
+                    persistenceController.restockFridgeItem(entity)
+                }
+                fridgeItem.restockToFull()
+                print("🔄 Restored \(fridgeItem.name) to 100%")
             }
         }
         
-        print("✅ Shopping list generated with \(shoppingList.items.count) items")
+        // Clear shopping list and reset state
+        persistenceController.clearAllShoppingItems()
+        shoppingList.items.removeAll()
+        shoppingState = .empty
         
-        // Force UI update
-        objectWillChange.send()
+        print("✅ Shopping completed and inventory restored")
+    }
+    
+    func cancelShopping() {
+        print("❌ Cancelling shopping...")
+        persistenceController.clearAllShoppingItems()
+        shoppingList.items.removeAll()
+        shoppingState = .empty
+        print("✅ Shopping cancelled")
     }
     
     private func getFrequentlyPurchasedItems() -> [FridgeItem] {
@@ -136,27 +190,26 @@ class FridgeManager: ObservableObject {
     }
     
     func addTemporaryItemToShoppingList(name: String) {
+        guard shoppingState == .generating else { return }
+        
         let entity = persistenceController.createShoppingItem(name: name, isTemporary: true)
         let tempItem = ShoppingListItem(name: name, isTemporary: true)
         tempItem.id = entity.id ?? UUID()
         shoppingList.addItem(tempItem)
+        print("➕ Added temporary item: \(name)")
     }
     
-    func completeShoppingTrip() {
-        // Update fridge items that were purchased
-        for item in shoppingList.items where item.isChecked && !item.isTemporary {
-            if let fridgeItem = item.fridgeItem {
-                let entities = persistenceController.fetchFridgeItems()
-                if let entity = entities.first(where: { $0.id == fridgeItem.id }) {
-                    persistenceController.restockFridgeItem(entity)
-                }
-                fridgeItem.restockToFull()
-            }
-        }
+    func removeItemFromShoppingList(_ item: ShoppingListItem) {
+        guard shoppingState == .generating else { return }
         
-        // Clear shopping list
-        persistenceController.clearAllShoppingItems()
-        shoppingList.items.removeAll()
+        // Delete from Core Data
+        let entities = persistenceController.fetchShoppingItems()
+        if let entity = entities.first(where: { $0.id == item.id }) {
+            persistenceController.deleteShoppingItem(entity)
+        }
+        // Remove from local list
+        shoppingList.removeItem(item)
+        print("➖ Removed item from shopping list: \(item.name)")
     }
     
     // MARK: - Statistics

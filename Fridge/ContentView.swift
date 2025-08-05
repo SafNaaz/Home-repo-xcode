@@ -113,7 +113,7 @@ struct FridgeView: View {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button(action: {
                         print("🔄 ContentView Generate button tapped")
-                        fridgeManager.generateShoppingList()
+                        fridgeManager.startGeneratingShoppingList()
                         selectedTab = 1 // Switch to Shopping tab
                     }) {
                         Text("Generate List")
@@ -122,7 +122,17 @@ struct FridgeView: View {
                 }
                 
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    DarkModeToggle()
+                    HStack {
+                        Button(action: {
+                            print("🔄 Refreshing data from Core Data")
+                            fridgeManager.refreshData()
+                        }) {
+                            Image(systemName: "arrow.clockwise")
+                                .foregroundColor(.blue)
+                        }
+                        
+                        DarkModeToggle()
+                    }
                 }
             }
         }
@@ -201,13 +211,22 @@ struct SectionDetailView: View {
     }
     
     private func deleteItems(offsets: IndexSet) {
+        // Get a snapshot of items to avoid index issues
         let items = fridgeManager.itemsForSection(section)
-        let itemsToDelete = offsets.compactMap { index in
-            index < items.count ? items[index] : nil
+        
+        // Create array of items to delete based on offsets
+        var itemsToDelete: [FridgeItem] = []
+        for index in offsets {
+            if index < items.count {
+                itemsToDelete.append(items[index])
+            }
         }
         
-        for item in itemsToDelete {
-            fridgeManager.removeItem(item)
+        // Delete items one by one with delay to prevent UI conflicts
+        for (delayIndex, item) in itemsToDelete.enumerated() {
+            DispatchQueue.main.asyncAfter(deadline: .now() + Double(delayIndex) * 0.1) {
+                fridgeManager.removeItem(item)
+            }
         }
     }
 }

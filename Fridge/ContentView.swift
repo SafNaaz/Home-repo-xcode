@@ -26,19 +26,12 @@ struct ContentView: View {
                         }
                         .tag(1)
                     
-                    StatsView()
-                        .tabItem {
-                            Image(systemName: "chart.bar.fill")
-                            Text("Stats")
-                        }
-                        .tag(2)
-                    
                     SettingsView()
                         .tabItem {
                             Image(systemName: "gearshape.fill")
                             Text("Settings")
                         }
-                        .tag(3)
+                        .tag(2)
                 }
                 .accentColor(.blue)
             }
@@ -51,6 +44,10 @@ struct ContentView: View {
                     }
                 }
             }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+            // Refresh data when app comes to foreground to ensure UI reflects persisted state
+            fridgeManager.refreshData()
         }
         .alert("Authentication Failed", isPresented: $showingAuthenticationAlert) {
             Button("Try Again") {

@@ -49,8 +49,20 @@ class FridgeManager: ObservableObject {
     }
     
     func refreshData() {
+        print("🔄 Refreshing all data...")
         loadData()
-        objectWillChange.send()
+        
+        // Force UI refresh for all components
+        DispatchQueue.main.async {
+            // Refresh individual shopping list items
+            for item in self.shoppingList.items {
+                item.objectWillChange.send()
+            }
+            
+            // Refresh shopping list and manager
+            self.shoppingList.objectWillChange.send()
+            self.objectWillChange.send()
+        }
     }
     
     private func loadShoppingList() {
@@ -65,11 +77,23 @@ class FridgeManager: ObservableObject {
             )
             item.id = entity.id ?? UUID()
             item.isChecked = entity.isChecked
-            print("📦 Loaded shopping item: \(item.name), checked: \(item.isChecked), temporary: \(item.isTemporary)")
+            print("📦 Loaded shopping item: \(item.name), checked: \(item.isChecked), temporary: \(item.isTemporary), ID: \(item.id)")
+            
+            // Force UI update for each individual item
+            DispatchQueue.main.async {
+                item.objectWillChange.send()
+            }
+            
             return item
         }
         
         print("✅ Shopping list loaded with \(shoppingList.items.count) items, \(shoppingList.checkedItems.count) checked")
+        
+        // Trigger UI refresh to ensure checked states are displayed correctly
+        DispatchQueue.main.async {
+            self.shoppingList.objectWillChange.send()
+            self.objectWillChange.send()
+        }
     }
     
     private func saveData() {

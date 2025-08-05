@@ -110,9 +110,14 @@ class ShoppingList: ObservableObject {
     }
     
     func toggleItem(_ item: ShoppingListItem) {
+        let oldState = item.isChecked
         item.isChecked.toggle()
+        let newState = item.isChecked
+        print("🔄 ShoppingList.toggleItem: \(item.name) changed from \(oldState) to \(newState)")
+        
         // Trigger UI update for observers of ShoppingList
         objectWillChange.send()
+        print("📱 UI update triggered for ShoppingList")
     }
     
     func completeShoppingAndUpdateInventory() {

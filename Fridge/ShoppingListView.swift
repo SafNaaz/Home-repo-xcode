@@ -429,13 +429,36 @@ struct ActiveItemRow: View {
     var body: some View {
         HStack {
             Button(action: {
+                print("🛒 User tapped checkbox for item: \(item.name), current state: \(item.isChecked), ID: \(item.id)")
+                
                 // Update Core Data
                 let entities = PersistenceController.shared.fetchShoppingItems()
+                print("🔍 Searching among \(entities.count) Core Data entities for ID: \(item.id)")
+                
                 if let entity = entities.first(where: { $0.id == item.id }) {
+                    print("📦 Found Core Data entity for: \(item.name), persisting toggle...")
                     PersistenceController.shared.toggleShoppingItem(entity)
+                } else {
+                    print("❌ Core Data entity not found for: \(item.name) (ID: \(item.id))")
+                    print("📋 Available entity IDs:")
+                    for entity in entities {
+                        print("   - \(entity.name ?? "Unknown"): \(entity.id?.uuidString ?? "nil")")
+                    }
+                    
+                    // Try to find by name as fallback
+                    if let entity = entities.first(where: { $0.name == item.name }) {
+                        print("🔄 Found entity by name, updating ID mapping and persisting...")
+                        item.id = entity.id ?? item.id
+                        PersistenceController.shared.toggleShoppingItem(entity)
+                    } else {
+                        print("❌ No entity found by name either for: \(item.name)")
+                    }
                 }
+                
                 // Update local item
+                print("🔄 Updating local item state for: \(item.name)")
                 fridgeManager.shoppingList.toggleItem(item)
+                print("✅ Local item updated: \(item.name), new state: \(item.isChecked)")
             }) {
                 Image(systemName: item.isChecked ? "checkmark.circle.fill" : "circle")
                     .foregroundColor(item.isChecked ? .green : .gray)

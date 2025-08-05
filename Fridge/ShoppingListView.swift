@@ -91,8 +91,11 @@ struct ShoppingListView: View {
     
     private func deleteUncheckedItems(offsets: IndexSet) {
         let uncheckedItems = fridgeManager.shoppingList.uncheckedItems
-        for index in offsets {
-            let item = uncheckedItems[index]
+        let itemsToDelete = offsets.compactMap { index in
+            index < uncheckedItems.count ? uncheckedItems[index] : nil
+        }
+        
+        for item in itemsToDelete {
             // Delete from Core Data
             let entities = PersistenceController.shared.fetchShoppingItems()
             if let entity = entities.first(where: { $0.id == item.id }) {
@@ -105,8 +108,11 @@ struct ShoppingListView: View {
     
     private func deleteCheckedItems(offsets: IndexSet) {
         let checkedItems = fridgeManager.shoppingList.checkedItems
-        for index in offsets {
-            let item = checkedItems[index]
+        let itemsToDelete = offsets.compactMap { index in
+            index < checkedItems.count ? checkedItems[index] : nil
+        }
+        
+        for item in itemsToDelete {
             // Delete from Core Data
             let entities = PersistenceController.shared.fetchShoppingItems()
             if let entity = entities.first(where: { $0.id == item.id }) {

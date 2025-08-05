@@ -202,8 +202,12 @@ struct SectionDetailView: View {
     
     private func deleteItems(offsets: IndexSet) {
         let items = fridgeManager.itemsForSection(section)
-        for index in offsets {
-            fridgeManager.removeItem(items[index])
+        let itemsToDelete = offsets.compactMap { index in
+            index < items.count ? items[index] : nil
+        }
+        
+        for item in itemsToDelete {
+            fridgeManager.removeItem(item)
         }
     }
 }

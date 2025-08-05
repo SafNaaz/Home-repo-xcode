@@ -111,6 +111,8 @@ class ShoppingList: ObservableObject {
     
     func toggleItem(_ item: ShoppingListItem) {
         item.isChecked.toggle()
+        // Trigger UI update for observers of ShoppingList
+        objectWillChange.send()
     }
     
     func completeShoppingAndUpdateInventory() {

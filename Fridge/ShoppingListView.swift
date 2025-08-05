@@ -230,6 +230,7 @@ struct ReadyShoppingView: View {
 struct ActiveShoppingView: View {
     @EnvironmentObject var fridgeManager: FridgeManager
     @State private var showingCompleteAlert = false
+    @State private var refreshTrigger = UUID()
     
     var body: some View {
         ZStack(alignment: .top) {
@@ -245,6 +246,18 @@ struct ActiveShoppingView: View {
                         .font(.title2)
                         .fontWeight(.bold)
                     
+                    // Progress indicator
+                    let checkedCount = fridgeManager.shoppingList.checkedItems.count
+                    let totalCount = fridgeManager.shoppingList.items.count
+                    
+                    HStack(spacing: 8) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(.green)
+                        Text("Checked \(checkedCount)/\(totalCount)")
+                            .font(.headline)
+                            .fontWeight(.semibold)
+                    }
+                    
                     Text("Check off items as you shop. Complete when done.")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
@@ -252,6 +265,10 @@ struct ActiveShoppingView: View {
                 }
                 .padding()
                 .padding(.top, 10) // Minimal top padding
+                .id(refreshTrigger)
+                .onReceive(fridgeManager.shoppingList.objectWillChange) { _ in
+                    refreshTrigger = UUID()
+                }
                 
                 // Active Checklist
                 List {

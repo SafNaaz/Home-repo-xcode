@@ -55,6 +55,8 @@ class FridgeManager: ObservableObject {
     
     private func loadShoppingList() {
         let entities = persistenceController.fetchShoppingItems()
+        print("🛒 Loading \(entities.count) shopping items from Core Data")
+        
         shoppingList.items = entities.map { entity in
             let item = ShoppingListItem(
                 name: entity.name ?? "",
@@ -63,8 +65,11 @@ class FridgeManager: ObservableObject {
             )
             item.id = entity.id ?? UUID()
             item.isChecked = entity.isChecked
+            print("📦 Loaded shopping item: \(item.name), checked: \(item.isChecked), temporary: \(item.isTemporary)")
             return item
         }
+        
+        print("✅ Shopping list loaded with \(shoppingList.items.count) items, \(shoppingList.checkedItems.count) checked")
     }
     
     private func saveData() {

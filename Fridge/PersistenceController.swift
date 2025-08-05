@@ -20,6 +20,7 @@ class PersistenceController: ObservableObject {
         }
         
         container.viewContext.automaticallyMergesChangesFromParent = true
+        container.viewContext.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
     }
     
     func save() {
@@ -28,9 +29,12 @@ class PersistenceController: ObservableObject {
         if context.hasChanges {
             do {
                 try context.save()
+                print("💾 Core Data context saved successfully")
             } catch {
-                print("Save error: \(error)")
+                print("❌ Save error: \(error)")
             }
+        } else {
+            print("⚠️ No changes to save in Core Data context")
         }
     }
     
@@ -116,8 +120,12 @@ class PersistenceController: ObservableObject {
     }
     
     func toggleShoppingItem(_ item: ShoppingItemEntity) {
+        let oldValue = item.isChecked
         item.isChecked.toggle()
+        let newValue = item.isChecked
+        print("🔄 Toggling shopping item: \(item.name ?? "Unknown") from \(oldValue) to \(newValue)")
         save()
+        print("✅ Shopping item toggle saved to Core Data")
     }
     
     func clearAllShoppingItems() {

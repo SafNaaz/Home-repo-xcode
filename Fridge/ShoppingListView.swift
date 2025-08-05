@@ -297,8 +297,13 @@ struct ActiveShoppingView: View {
                         .cornerRadius(10)
                     }
                     
-                    if checkedCount > 0 {
-                        Text("\(checkedCount) items will be restored to 100%")
+                    let restorableCount = fridgeManager.shoppingList.checkedItems.filter { !$0.isTemporary }.count
+                    if restorableCount > 0 {
+                        Text("\(restorableCount) items will be restored to 100%")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    } else if checkedCount > 0 {
+                        Text("Misc items checked - no inventory restoration")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     } else {
@@ -327,7 +332,17 @@ struct ActiveShoppingView: View {
             }
         } message: {
             let checkedCount = fridgeManager.shoppingList.checkedItems.count
-            Text("This will restore \(checkedCount) checked items to 100% stock and clear the shopping list.")
+            let restorableCount = fridgeManager.shoppingList.checkedItems.filter { !$0.isTemporary }.count
+            
+            if restorableCount > 0 && checkedCount > restorableCount {
+                Text("This will restore \(restorableCount) checked fridge items to 100% stock. Misc items will be cleared from the list.")
+            } else if restorableCount > 0 {
+                Text("This will restore \(restorableCount) checked items to 100% stock and clear the shopping list.")
+            } else if checkedCount > 0 {
+                Text("This will clear the checked misc items from the shopping list. No inventory will be restored.")
+            } else {
+                Text("This will clear the shopping list. No items will be restored to inventory.")
+            }
         }
     }
 }

@@ -192,24 +192,40 @@ class FridgeManager: ObservableObject {
     func addTemporaryItemToShoppingList(name: String) {
         guard shoppingState == .generating else { return }
         
-        let entity = persistenceController.createShoppingItem(name: name, isTemporary: true)
-        let tempItem = ShoppingListItem(name: name, isTemporary: true)
-        tempItem.id = entity.id ?? UUID()
-        shoppingList.addItem(tempItem)
-        print("➕ Added temporary item: \(name)")
+        print("➕ Adding temporary item: \(name)")
+        
+        DispatchQueue.main.async {
+            let entity = self.persistenceController.createShoppingItem(name: name, isTemporary: true)
+            let tempItem = ShoppingListItem(name: name, isTemporary: true)
+            tempItem.id = entity.id ?? UUID()
+            self.shoppingList.addItem(tempItem)
+            print("✅ Temporary item added: \(name)")
+            
+            // Force UI update
+            self.objectWillChange.send()
+        }
     }
     
     func removeItemFromShoppingList(_ item: ShoppingListItem) {
         guard shoppingState == .generating else { return }
         
-        // Delete from Core Data
-        let entities = persistenceController.fetchShoppingItems()
-        if let entity = entities.first(where: { $0.id == item.id }) {
-            persistenceController.deleteShoppingItem(entity)
+        print("➖ Removing item from shopping list: \(item.name)")
+        
+        DispatchQueue.main.async {
+            // Delete from Core Data
+            let entities = self.persistenceController.fetchShoppingItems()
+            if let entity = entities.first(where: { $0.id == item.id }) {
+                self.persistenceController.deleteShoppingItem(entity)
+                print("✅ Core Data entity deleted for shopping item: \(item.name)")
+            }
+            
+            // Remove from local list
+            self.shoppingList.removeItem(item)
+            print("✅ Local shopping item removed: \(item.name)")
+            
+            // Force UI update
+            self.objectWillChange.send()
         }
-        // Remove from local list
-        shoppingList.removeItem(item)
-        print("➖ Removed item from shopping list: \(item.name)")
     }
     
     // MARK: - Statistics

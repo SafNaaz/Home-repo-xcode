@@ -66,6 +66,7 @@ struct FridgeView: View {
     @State private var selectedSection: FridgeSection = .main
     @State private var showingNewShoppingAlert = false
     @State private var refreshTrigger = UUID()
+    @State private var navigationPath = NavigationPath()
     @Binding var selectedTab: Int
     
     private func getShoppingStateMessage() -> String {
@@ -82,7 +83,7 @@ struct FridgeView: View {
     }
     
     var body: some View {
-        NavigationView {
+        NavigationStack(path: $navigationPath) {
             VStack(spacing: 0) {
                 // Quick Stats Header
                 HStack {
@@ -117,7 +118,7 @@ struct FridgeView: View {
                 // Fridge Sections
                 List {
                     ForEach(FridgeSection.allCases) { section in
-                        NavigationLink(destination: SectionDetailView(section: section)) {
+                        NavigationLink(value: section) {
                             SectionRowView(section: section)
                         }
                     }
@@ -125,7 +126,15 @@ struct FridgeView: View {
                 .listStyle(PlainListStyle())
             }
             .navigationTitle("My Fridge")
-            .navigationBarItems(trailing: DarkModeToggle())
+            .navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    DarkModeToggle()
+                }
+            }
+            .navigationDestination(for: FridgeSection.self) { section in
+                SectionDetailView(section: section)
+            }
             .overlay(
                 // Floating Action Button
                 VStack {
@@ -171,6 +180,12 @@ struct FridgeView: View {
                 }
             } message: {
                 Text(getShoppingStateMessage())
+            }
+            .onChange(of: selectedTab) {
+                // Reset navigation to root when fridge tab is selected
+                if selectedTab == 0 {
+                    navigationPath = NavigationPath()
+                }
             }
         }
     }

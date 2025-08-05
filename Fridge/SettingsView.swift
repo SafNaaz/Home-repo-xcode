@@ -4,7 +4,6 @@ struct SettingsView: View {
     @EnvironmentObject var fridgeManager: FridgeManager
     @EnvironmentObject var settingsManager: SettingsManager
     @State private var showingClearDataAlert = false
-    @State private var showingResetAlert = false
     
     var body: some View {
         NavigationView {
@@ -53,27 +52,6 @@ struct SettingsView: View {
                 
                 // Data Management Section
                 Section("Data Management") {
-                    Button(action: {
-                        showingResetAlert = true
-                    }) {
-                        HStack {
-                            Image(systemName: "arrow.clockwise")
-                                .foregroundColor(.blue)
-                                .frame(width: 25)
-                            
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Reset to Defaults")
-                                    .foregroundColor(.primary)
-                                Text("Restore default Indian household items")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                            
-                            Spacer()
-                        }
-                    }
-                    .padding(.vertical, 4)
-                    
                     Button(action: {
                         showingClearDataAlert = true
                     }) {
@@ -140,14 +118,6 @@ struct SettingsView: View {
             }
         } message: {
             Text("This will permanently delete all your fridge items and shopping lists. This action cannot be undone.")
-        }
-        .alert("Reset to Defaults", isPresented: $showingResetAlert) {
-            Button("Cancel", role: .cancel) { }
-            Button("Reset") {
-                settingsManager.resetToDefaults(fridgeManager: fridgeManager)
-            }
-        } message: {
-            Text("This will replace all current items with the default Indian household items. Your custom items will be lost.")
         }
     }
 }

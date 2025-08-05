@@ -91,8 +91,4 @@ class SettingsManager: ObservableObject {
     func clearAllData(fridgeManager: FridgeManager) {
         fridgeManager.clearAllData()
     }
-    
-    func resetToDefaults(fridgeManager: FridgeManager) {
-        fridgeManager.resetToDefaults()
-    }
 }

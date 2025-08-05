@@ -1,9 +1,12 @@
 import Foundation
 import SwiftUI
+import CoreData
 
 class FridgeManager: ObservableObject {
     @Published var fridgeItems: [FridgeItem] = []
     @Published var shoppingList = ShoppingList()
+    
+    private let persistenceController = PersistenceController.shared
     
     init() {
         loadData()
@@ -11,17 +14,39 @@ class FridgeManager: ObservableObject {
     
     // MARK: - Data Management
     private func loadData() {
-        // For now, we'll use in-memory storage with default items
-        // In a real app, this would load from Core Data or UserDefaults
-        if fridgeItems.isEmpty {
-            fridgeItems = DefaultItems.createDefaultFridgeItems()
-            saveData()
+        let entities = persistenceController.fetchFridgeItems()
+        fridgeItems = entities.map { entity in
+            let item = FridgeItem(
+                name: entity.name ?? "",
+                quantity: entity.quantity,
+                section: FridgeSection(rawValue: entity.section ?? "") ?? .main,
+                isCustom: entity.isCustom
+            )
+            item.id = entity.id ?? UUID()
+            item.purchaseHistory = entity.purchaseHistory ?? []
+            item.lastUpdated = entity.lastUpdated ?? Date()
+            return item
+        }
+        
+        loadShoppingList()
+    }
+    
+    private func loadShoppingList() {
+        let entities = persistenceController.fetchShoppingItems()
+        shoppingList.items = entities.map { entity in
+            let item = ShoppingListItem(
+                name: entity.name ?? "",
+                isTemporary: entity.isTemporary,
+                fridgeItem: fridgeItems.first { $0.id == entity.fridgeItemId }
+            )
+            item.id = entity.id ?? UUID()
+            item.isChecked = entity.isChecked
+            return item
         }
     }
     
     private func saveData() {
-        // In a real app, this would save to Core Data or UserDefaults
-        // For now, we'll keep it in memory
+        // Core Data saves automatically through PersistenceController
     }
     
     // MARK: - Fridge Items Management
@@ -30,19 +55,32 @@ class FridgeManager: ObservableObject {
     }
     
     func addCustomItem(name: String, section: FridgeSection) {
+        let entity = persistenceController.createFridgeItem(name: name, section: section, quantity: 1.0, isCustom: true)
         let newItem = FridgeItem(name: name, quantity: 1.0, section: section, isCustom: true)
+        newItem.id = entity.id ?? UUID()
         fridgeItems.append(newItem)
-        saveData()
     }
     
     func removeItem(_ item: FridgeItem) {
+        // Find and delete the Core Data entity
+        let entities = persistenceController.fetchFridgeItems()
+        if let entity = entities.first(where: { $0.id == item.id }) {
+            persistenceController.deleteFridgeItem(entity)
+        }
+        
+        // Remove from local array
         fridgeItems.removeAll { $0.id == item.id }
-        saveData()
     }
     
     func updateItemQuantity(_ item: FridgeItem, quantity: Double) {
+        // Update Core Data entity
+        let entities = persistenceController.fetchFridgeItems()
+        if let entity = entities.first(where: { $0.id == item.id }) {
+            persistenceController.updateFridgeItem(entity, quantity: quantity)
+        }
+        
+        // Update local item
         item.updateQuantity(quantity)
-        saveData()
     }
     
     // MARK: - Shopping List Management
@@ -50,6 +88,8 @@ class FridgeManager: ObservableObject {
         print("🛒 Generating shopping list...")
         print("📦 Total fridge items: \(fridgeItems.count)")
         
+        // Clear existing shopping list in Core Data
+        persistenceController.clearAllShoppingItems()
         shoppingList.items.removeAll()
         
         // Add items that need restocking (≤25%)
@@ -57,7 +97,9 @@ class FridgeManager: ObservableObject {
         print("📉 Low stock items found: \(lowStockItems.count)")
         
         for item in lowStockItems {
+            let entity = persistenceController.createShoppingItem(name: item.name, fridgeItemId: item.id, isTemporary: false)
             let shoppingItem = ShoppingListItem(name: item.name, fridgeItem: item)
+            shoppingItem.id = entity.id ?? UUID()
             shoppingList.addItem(shoppingItem)
             print("➕ Added low stock item: \(item.name) (\(item.quantityPercentage)%)")
         }
@@ -69,7 +111,9 @@ class FridgeManager: ObservableObject {
         for item in frequentItems {
             // Only add if not already in the list
             if !shoppingList.items.contains(where: { $0.fridgeItem?.id == item.id }) {
+                let entity = persistenceController.createShoppingItem(name: item.name, fridgeItemId: item.id, isTemporary: false)
                 let shoppingItem = ShoppingListItem(name: item.name, fridgeItem: item)
+                shoppingItem.id = entity.id ?? UUID()
                 shoppingList.addItem(shoppingItem)
                 print("➕ Added frequent item: \(item.name)")
             }
@@ -92,13 +136,27 @@ class FridgeManager: ObservableObject {
     }
     
     func addTemporaryItemToShoppingList(name: String) {
+        let entity = persistenceController.createShoppingItem(name: name, isTemporary: true)
         let tempItem = ShoppingListItem(name: name, isTemporary: true)
+        tempItem.id = entity.id ?? UUID()
         shoppingList.addItem(tempItem)
     }
     
     func completeShoppingTrip() {
-        shoppingList.completeShoppingAndUpdateInventory()
-        saveData()
+        // Update fridge items that were purchased
+        for item in shoppingList.items where item.isChecked && !item.isTemporary {
+            if let fridgeItem = item.fridgeItem {
+                let entities = persistenceController.fetchFridgeItems()
+                if let entity = entities.first(where: { $0.id == fridgeItem.id }) {
+                    persistenceController.restockFridgeItem(entity)
+                }
+                fridgeItem.restockToFull()
+            }
+        }
+        
+        // Clear shopping list
+        persistenceController.clearAllShoppingItems()
+        shoppingList.items.removeAll()
     }
     
     // MARK: - Statistics
@@ -122,15 +180,13 @@ class FridgeManager: ObservableObject {
     
     // MARK: - Data Management
     func clearAllData() {
+        persistenceController.clearAllData()
         fridgeItems.removeAll()
         shoppingList.items.removeAll()
-        saveData()
     }
     
     func resetToDefaults() {
-        fridgeItems.removeAll()
-        shoppingList.items.removeAll()
-        fridgeItems = DefaultItems.createDefaultFridgeItems()
-        saveData()
+        // Just clear all data - no more pre-populated items
+        clearAllData()
     }
 }

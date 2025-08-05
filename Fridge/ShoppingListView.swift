@@ -92,14 +92,28 @@ struct ShoppingListView: View {
     private func deleteUncheckedItems(offsets: IndexSet) {
         let uncheckedItems = fridgeManager.shoppingList.uncheckedItems
         for index in offsets {
-            fridgeManager.shoppingList.removeItem(uncheckedItems[index])
+            let item = uncheckedItems[index]
+            // Delete from Core Data
+            let entities = PersistenceController.shared.fetchShoppingItems()
+            if let entity = entities.first(where: { $0.id == item.id }) {
+                PersistenceController.shared.deleteShoppingItem(entity)
+            }
+            // Remove from local list
+            fridgeManager.shoppingList.removeItem(item)
         }
     }
     
     private func deleteCheckedItems(offsets: IndexSet) {
         let checkedItems = fridgeManager.shoppingList.checkedItems
         for index in offsets {
-            fridgeManager.shoppingList.removeItem(checkedItems[index])
+            let item = checkedItems[index]
+            // Delete from Core Data
+            let entities = PersistenceController.shared.fetchShoppingItems()
+            if let entity = entities.first(where: { $0.id == item.id }) {
+                PersistenceController.shared.deleteShoppingItem(entity)
+            }
+            // Remove from local list
+            fridgeManager.shoppingList.removeItem(item)
         }
     }
 }
@@ -111,6 +125,12 @@ struct ShoppingItemRow: View {
     var body: some View {
         HStack {
             Button(action: {
+                // Update Core Data
+                let entities = PersistenceController.shared.fetchShoppingItems()
+                if let entity = entities.first(where: { $0.id == item.id }) {
+                    PersistenceController.shared.toggleShoppingItem(entity)
+                }
+                // Update local item
                 fridgeManager.shoppingList.toggleItem(item)
             }) {
                 Image(systemName: item.isChecked ? "checkmark.circle.fill" : "circle")

@@ -14,7 +14,7 @@ enum FridgeSection: String, CaseIterable, Identifiable {
     
     var icon: String {
         switch self {
-        case .doorBottles: return "bottle.fill"
+        case .doorBottles: return "waterbottle.fill"
         case .tray: return "tray.fill"
         case .main: return "refrigerator.fill"
         case .vegetable: return "carrot.fill"
@@ -63,8 +63,14 @@ class FridgeItem: ObservableObject, Identifiable {
     }
     
     func updateQuantity(_ newQuantity: Double) {
+        let oldNeedsRestocking = needsRestocking
         quantity = max(0.0, min(1.0, newQuantity))
         lastUpdated = Date()
+        
+        // Force UI update if restocking status changed
+        if oldNeedsRestocking != needsRestocking {
+            objectWillChange.send()
+        }
     }
     
     func restockToFull() {

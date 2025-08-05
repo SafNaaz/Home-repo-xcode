@@ -117,16 +117,25 @@ class FridgeManager: ObservableObject {
     }
     
     func updateItemQuantity(_ item: FridgeItem, quantity: Double) {
-        print("🔄 Updating item quantity: \(item.name) to \(Int(quantity * 100))% (ID: \(item.id))")
+        // Update local item immediately for instant UI response
+        item.updateQuantity(quantity)
+        print("🔄 Local item updated immediately: \(item.name) to \(Int(quantity * 100))%")
         
+        // Trigger UI updates for computed properties that depend on item quantities
+        objectWillChange.send()
+    }
+    
+    func persistItemQuantity(_ item: FridgeItem) {
+        print("💾 Persisting item quantity: \(item.name) at \(Int(item.quantity * 100))% (ID: \(item.id))")
+        
+        // Handle Core Data persistence asynchronously
         DispatchQueue.main.async {
-            // Update Core Data entity
             let entities = self.persistenceController.fetchFridgeItems()
             print("🔍 Searching among \(entities.count) Core Data entities")
             
             if let entity = entities.first(where: { $0.id == item.id }) {
-                self.persistenceController.updateFridgeItem(entity, quantity: quantity)
-                print("✅ Core Data updated for: \(item.name) (Entity ID: \(entity.id?.uuidString ?? "nil"))")
+                self.persistenceController.updateFridgeItem(entity, quantity: item.quantity)
+                print("✅ Core Data persisted for: \(item.name) (Entity ID: \(entity.id?.uuidString ?? "nil"))")
             } else {
                 print("❌ Core Data entity not found for: \(item.name) (Looking for ID: \(item.id))")
                 print("📋 Available entity IDs: \(entities.compactMap { $0.id?.uuidString }.joined(separator: ", "))")
@@ -135,14 +144,10 @@ class FridgeManager: ObservableObject {
                 if let entity = entities.first(where: { $0.name == item.name }) {
                     print("🔄 Found entity by name, updating ID mapping")
                     item.id = entity.id ?? item.id
-                    self.persistenceController.updateFridgeItem(entity, quantity: quantity)
-                    print("✅ Core Data updated using name fallback for: \(item.name)")
+                    self.persistenceController.updateFridgeItem(entity, quantity: item.quantity)
+                    print("✅ Core Data persisted using name fallback for: \(item.name)")
                 }
             }
-            
-            // Update local item
-            item.updateQuantity(quantity)
-            print("✅ Local item updated for: \(item.name)")
         }
     }
     

@@ -68,6 +68,7 @@ struct FridgeView: View {
     @State private var showingAddItem = false
     @State private var selectedSection: FridgeSection = .main
     @State private var showingNewShoppingAlert = false
+    @State private var refreshTrigger = UUID()
     @Binding var selectedTab: Int
     
     private func getShoppingStateMessage() -> String {
@@ -111,6 +112,10 @@ struct FridgeView: View {
                 }
                 .padding()
                 .background(Color(.systemGray6))
+                .id(refreshTrigger)
+                .onReceive(fridgeManager.objectWillChange) { _ in
+                    refreshTrigger = UUID()
+                }
                 
                 // Fridge Sections
                 List {
@@ -178,6 +183,7 @@ struct FridgeView: View {
 struct SectionRowView: View {
     let section: FridgeSection
     @EnvironmentObject var fridgeManager: FridgeManager
+    @State private var refreshTrigger = UUID()
     
     var body: some View {
         HStack {
@@ -210,6 +216,10 @@ struct SectionRowView: View {
                 .font(.caption)
         }
         .padding(.vertical, 8)
+        .id(refreshTrigger)
+        .onReceive(fridgeManager.objectWillChange) { _ in
+            refreshTrigger = UUID()
+        }
     }
 }
 
@@ -266,6 +276,7 @@ struct SectionDetailView: View {
 struct ItemRowView: View {
     @ObservedObject var item: FridgeItem
     @EnvironmentObject var fridgeManager: FridgeManager
+    @State private var isEditing = false
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -293,7 +304,13 @@ struct ItemRowView: View {
                     set: { newValue in
                         fridgeManager.updateItemQuantity(item, quantity: newValue)
                     }
-                ), in: 0...1, step: 0.05)
+                ), in: 0...1, step: 0.05, onEditingChanged: { editing in
+                    isEditing = editing
+                    if !editing {
+                        // User finished editing, persist to database
+                        fridgeManager.persistItemQuantity(item)
+                    }
+                })
                 .accentColor(item.needsRestocking ? .red : .blue)
             }
             
@@ -320,16 +337,29 @@ struct AddItemView: View {
     
     var body: some View {
         NavigationView {
-            VStack(spacing: 20) {
-                Text("Add New Item to \(section.rawValue)")
-                    .font(.headline)
-                    .padding()
+            VStack(spacing: 0) {
+                // Header with consistent grey background
+                VStack(spacing: 12) {
+                    Text("Add New Item")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                    
+                    Text("Adding to \(section.rawValue)")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                .padding()
+                .background(Color(.systemGray6))
                 
-                TextField("Item name", text: $newItemName)
-                    .textFieldStyle(RoundedBorderTextFieldStyle())
-                    .padding(.horizontal)
-                
-                Spacer()
+                // Content area
+                VStack(spacing: 20) {
+                    TextField("Item name", text: $newItemName)
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                        .padding(.horizontal)
+                    
+                    Spacer()
+                }
+                .padding(.top, 20)
             }
             .navigationTitle("Add Item")
             .navigationBarTitleDisplayMode(.inline)

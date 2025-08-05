@@ -80,64 +80,71 @@ struct GeneratingShoppingView: View {
     @State private var miscItemName = ""
     
     var body: some View {
-        VStack(spacing: 0) {
-            // Header
-            VStack(spacing: 12) {
-                Text("Review Your Shopping List")
-                    .font(.title2)
-                    .fontWeight(.bold)
-                
-                Text("Items needing attention are listed below. Remove items you don't need or add misc items.")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
-            }
-            .padding()
-            .background(Color(.systemGray6))
+        ZStack(alignment: .top) {
+            // Background that extends to top
+            Color(.systemGray6)
+                .ignoresSafeArea(.all, edges: .top)
+                .frame(height: 200) // Adjust height as needed
             
-            // Shopping List Items
-            List {
-                if !fridgeManager.shoppingList.items.isEmpty {
-                    Section("Items to Buy") {
-                        ForEach(fridgeManager.shoppingList.items) { item in
-                            GeneratingItemRow(item: item)
+            VStack(spacing: 0) {
+                // Header content with proper spacing
+                VStack(spacing: 12) {
+                    Text("Review Your Shopping List")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                    
+                    Text("Items needing attention are listed below. Remove items you don't need or add misc items.")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                .padding()
+                .padding(.top, 10) // Minimal top padding
+                
+                // Shopping List Items
+                List {
+                    if !fridgeManager.shoppingList.items.isEmpty {
+                        Section("Items to Buy") {
+                            ForEach(fridgeManager.shoppingList.items) { item in
+                                GeneratingItemRow(item: item)
+                            }
                         }
                     }
                 }
-            }
-            
-            // Action Buttons
-            VStack(spacing: 12) {
-                Button(action: {
-                    showingAddMiscItem = true
-                }) {
-                    HStack {
-                        Image(systemName: "plus.circle")
-                        Text("Add Misc Item")
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color(.systemGray5))
-                    .foregroundColor(.primary)
-                    .cornerRadius(10)
-                }
                 
-                Button(action: {
-                    fridgeManager.finalizeShoppingList()
-                }) {
-                    HStack {
-                        Image(systemName: "arrow.right.circle.fill")
-                        Text("Next - Create Checklist")
+                // Action Buttons
+                VStack(spacing: 12) {
+                    Button(action: {
+                        showingAddMiscItem = true
+                    }) {
+                        HStack {
+                            Image(systemName: "plus.circle")
+                            Text("Add Misc Item")
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color(.systemGray5))
+                        .foregroundColor(.primary)
+                        .cornerRadius(10)
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.green)
-                    .foregroundColor(.white)
-                    .cornerRadius(10)
+                    
+                    Button(action: {
+                        fridgeManager.finalizeShoppingList()
+                    }) {
+                        HStack {
+                            Image(systemName: "arrow.right.circle.fill")
+                            Text("Next - Create Checklist")
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.green)
+                        .foregroundColor(.white)
+                        .cornerRadius(10)
+                    }
+                    .disabled(fridgeManager.shoppingList.items.isEmpty)
                 }
-                .disabled(fridgeManager.shoppingList.items.isEmpty)
+                .padding()
             }
-            .padding()
         }
         .navigationBarItems(leading: Button("Cancel") {
             fridgeManager.cancelShopping()
@@ -160,54 +167,61 @@ struct ReadyShoppingView: View {
     @EnvironmentObject var fridgeManager: FridgeManager
     
     var body: some View {
-        VStack(spacing: 0) {
-            // Header
-            VStack(spacing: 12) {
-                Text("Shopping Checklist Ready")
-                    .font(.title2)
-                    .fontWeight(.bold)
-                
-                Text("Your shopping list is ready. Start shopping to unlock the checklist.")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
-            }
-            .padding()
-            .background(Color(.systemGray6))
+        ZStack(alignment: .top) {
+            // Background that extends to top
+            Color(.systemGray6)
+                .ignoresSafeArea(.all, edges: .top)
+                .frame(height: 200) // Adjust height as needed
             
-            // Read-only Checklist
-            List {
-                Section("Shopping List (\(fridgeManager.shoppingList.items.count) items)") {
-                    ForEach(fridgeManager.shoppingList.items) { item in
-                        ReadOnlyItemRow(item: item)
+            VStack(spacing: 0) {
+                // Header content with proper spacing
+                VStack(spacing: 12) {
+                    Text("Shopping Checklist Ready")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                    
+                    Text("Your shopping list is ready. Start shopping to unlock the checklist.")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                .padding()
+                .padding(.top, 10) // Minimal top padding
+                
+                // Read-only Checklist
+                List {
+                    Section("Shopping List (\(fridgeManager.shoppingList.items.count) items)") {
+                        ForEach(fridgeManager.shoppingList.items) { item in
+                            ReadOnlyItemRow(item: item)
+                        }
                     }
                 }
-            }
-            
-            // Action Buttons
-            VStack(spacing: 12) {
-                Button(action: {
-                    fridgeManager.startShopping()
-                }) {
-                    HStack {
-                        Image(systemName: "cart.fill")
-                        Text("Start Shopping")
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.blue)
-                    .foregroundColor(.white)
-                    .cornerRadius(10)
-                }
                 
-                Button(action: {
-                    fridgeManager.cancelShopping()
-                }) {
-                    Text("Cancel Shopping")
-                        .foregroundColor(.red)
+                // Action Buttons
+                VStack(spacing: 12) {
+                    Button(action: {
+                        fridgeManager.startShopping()
+                    }) {
+                        HStack {
+                            Image(systemName: "cart.fill")
+                            Text("Start Shopping")
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.blue)
+                        .foregroundColor(.white)
+                        .cornerRadius(10)
+                    }
+                    
+                    Button(action: {
+                        fridgeManager.cancelShopping()
+                    }) {
+                        Text("Cancel Shopping")
+                            .foregroundColor(.red)
+                    }
                 }
+                .padding()
             }
-            .padding()
         }
     }
 }
@@ -218,54 +232,76 @@ struct ActiveShoppingView: View {
     @State private var showingCompleteAlert = false
     
     var body: some View {
-        VStack(spacing: 0) {
-            // Header
-            VStack(spacing: 12) {
-                Text("Shopping in Progress")
-                    .font(.title2)
-                    .fontWeight(.bold)
-                
-                Text("Check off items as you shop. Complete when done.")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
-            }
-            .padding()
-            .background(Color(.systemGray6))
+        ZStack(alignment: .top) {
+            // Background that extends to top
+            Color(.systemGray6)
+                .ignoresSafeArea(.all, edges: .top)
+                .frame(height: 200) // Adjust height as needed
             
-            // Active Checklist
-            List {
-                Section("Shopping Checklist") {
-                    ForEach(fridgeManager.shoppingList.items) { item in
-                        ActiveItemRow(item: item)
-                    }
-                }
-            }
-            
-            // Completion Button
-            VStack(spacing: 12) {
-                Button(action: {
-                    showingCompleteAlert = true
-                }) {
-                    HStack {
-                        Image(systemName: "checkmark.circle.fill")
-                        Text("Complete Shopping")
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.green)
-                    .foregroundColor(.white)
-                    .cornerRadius(10)
-                }
-                
-                let checkedCount = fridgeManager.shoppingList.checkedItems.count
-                if checkedCount > 0 {
-                    Text("\(checkedCount) items will be restored to 100%")
-                        .font(.caption)
+            VStack(spacing: 0) {
+                // Header content with proper spacing
+                VStack(spacing: 12) {
+                    Text("Shopping in Progress")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                    
+                    Text("Check off items as you shop. Complete when done.")
+                        .font(.subheadline)
                         .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
                 }
+                .padding()
+                .padding(.top, 10) // Minimal top padding
+                
+                // Active Checklist
+                List {
+                    Section("Shopping Checklist") {
+                        ForEach(fridgeManager.shoppingList.items) { item in
+                            ActiveItemRow(item: item)
+                        }
+                    }
+                }
+                
+                // Completion Button
+                VStack(spacing: 12) {
+                    let checkedCount = fridgeManager.shoppingList.checkedItems.count
+                    
+                    Button(action: {
+                        showingCompleteAlert = true
+                    }) {
+                        HStack {
+                            Image(systemName: "checkmark.circle.fill")
+                            Text("Complete Shopping")
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.green)
+                        .foregroundColor(.white)
+                        .cornerRadius(10)
+                    }
+                    
+                    if checkedCount > 0 {
+                        Text("\(checkedCount) items will be restored to 100%")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    } else {
+                        VStack(spacing: 8) {
+                            HStack {
+                                Image(systemName: "info.circle")
+                                    .foregroundColor(.blue)
+                                Text("Tap items to check them off as you shop")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            Text("Checked items will be automatically restocked to 100%")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                        }
+                    }
+                }
+                .padding()
             }
-            .padding()
         }
         .alert("Complete Shopping Trip", isPresented: $showingCompleteAlert) {
             Button("Cancel", role: .cancel) { }
@@ -326,10 +362,7 @@ struct ReadOnlyItemRow: View {
     
     var body: some View {
         HStack {
-            Image(systemName: "circle")
-                .foregroundColor(.gray)
-                .font(.title2)
-            
+            // No checkbox icon for read-only state
             VStack(alignment: .leading, spacing: 4) {
                 Text(item.name)
                     .font(.headline)
@@ -415,22 +448,30 @@ struct AddMiscItemView: View {
     
     var body: some View {
         NavigationView {
-            VStack(spacing: 20) {
-                Text("Add Misc Item")
-                    .font(.headline)
-                    .padding()
+            VStack(spacing: 0) {
+                // Header with consistent grey background
+                VStack(spacing: 12) {
+                    Text("Add Misc Item")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                    
+                    Text("Add items that aren't tracked in your fridge inventory.")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                .padding()
+                .background(Color(.systemGray6))
                 
-                Text("Add items that aren't tracked in your fridge inventory.")
-                    .font(.body)
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal)
-                
-                TextField("Item name (e.g., Cleaning supplies)", text: $itemName)
-                    .textFieldStyle(RoundedBorderTextFieldStyle())
-                    .padding(.horizontal)
-                
-                Spacer()
+                // Content area
+                VStack(spacing: 20) {
+                    TextField("Item name (e.g., Cleaning supplies)", text: $itemName)
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                        .padding(.horizontal)
+                    
+                    Spacer()
+                }
+                .padding(.top, 20)
             }
             .navigationTitle("Add Misc Item")
             .navigationBarTitleDisplayMode(.inline)

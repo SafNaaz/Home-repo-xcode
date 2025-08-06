@@ -306,10 +306,6 @@ struct SubcategoryRowView: View {
             }
             
             Spacer()
-            
-            Image(systemName: "chevron.right")
-                .foregroundColor(.secondary)
-                .font(.caption)
         }
         .padding(.vertical, 8)
         .id(refreshTrigger)

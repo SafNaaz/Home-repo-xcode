@@ -78,6 +78,12 @@ class PersistenceController: ObservableObject {
         save()
     }
     
+    func updateFridgeItemName(_ item: FridgeItemEntity, name: String) {
+        item.name = name
+        item.lastUpdated = Date()
+        save()
+    }
+    
     func restockFridgeItem(_ item: FridgeItemEntity) {
         item.quantity = 1.0
         var history = item.purchaseHistory ?? []

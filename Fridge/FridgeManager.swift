@@ -41,22 +41,8 @@ class InventoryManager: ObservableObject {
             return item
         }
         
-        // If no items exist, create sample items
-        if inventoryItems.isEmpty {
-            print("📦 No items found, creating sample items...")
-            let sampleItems = DefaultItemsHelper.createSampleItems()
-            for item in sampleItems {
-                let entity = persistenceController.createFridgeItem(
-                    name: item.name,
-                    section: item.subcategory,
-                    quantity: item.quantity,
-                    isCustom: item.isCustom
-                )
-                item.id = entity.id ?? item.id
-                inventoryItems.append(item)
-            }
-            print("✅ Created \(inventoryItems.count) sample items")
-        }
+        // Start with empty inventory - no automatic sample data creation
+        print("📦 Loaded \(inventoryItems.count) items from storage")
         
         loadShoppingList()
         
@@ -147,25 +133,42 @@ class InventoryManager: ObservableObject {
     }
     
     func removeItem(_ item: InventoryItem) {
-        print("🗑️ Removing item: \(item.name)")
+        print("🗑️ Removing item: \(item.name) (ID: \(item.id))")
         
         // Use DispatchQueue to ensure proper UI updates
         DispatchQueue.main.async {
-            // Find and delete the Core Data entity
+            // Find and delete the Core Data entity first
             let entities = self.persistenceController.fetchFridgeItems()
+            print("🔍 Searching among \(entities.count) Core Data entities for deletion")
+            
             if let entity = entities.first(where: { $0.id == item.id }) {
+                print("✅ Found Core Data entity for deletion: \(entity.name ?? "Unknown") (ID: \(entity.id?.uuidString ?? "nil"))")
                 self.persistenceController.deleteFridgeItem(entity)
                 print("✅ Core Data entity deleted for: \(item.name)")
             } else {
-                print("❌ Core Data entity not found for: \(item.name)")
+                print("❌ Core Data entity not found for: \(item.name) (Looking for ID: \(item.id))")
+                print("📋 Available entity IDs: \(entities.compactMap { $0.id?.uuidString }.joined(separator: ", "))")
+                
+                // Try to find by name as fallback
+                if let entity = entities.first(where: { $0.name == item.name }) {
+                    print("🔄 Found entity by name for deletion, proceeding")
+                    self.persistenceController.deleteFridgeItem(entity)
+                    print("✅ Core Data entity deleted using name fallback for: \(item.name)")
+                }
             }
             
             // Remove from local array on main thread
+            let beforeCount = self.inventoryItems.count
             self.inventoryItems.removeAll { $0.id == item.id }
-            print("✅ Local item removed: \(item.name)")
+            let afterCount = self.inventoryItems.count
+            print("✅ Local item removed: \(item.name) (Items count: \(beforeCount) -> \(afterCount))")
             
             // Also remove any shopping list items that reference this inventory item
             self.removeFromShoppingListIfExists(item)
+            
+            // Force UI refresh
+            self.objectWillChange.send()
+            print("📱 UI refresh triggered after item deletion")
         }
     }
     
@@ -237,6 +240,60 @@ class InventoryManager: ObservableObject {
                     print("✅ Core Data persisted using name fallback for: \(item.name)")
                 }
             }
+        }
+    }
+    
+    func updateItemName(_ item: InventoryItem, newName: String) {
+        let trimmedName = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else { return }
+        
+        print("✏️ Updating item name: \(item.name) -> \(trimmedName) (ID: \(item.id))")
+        
+        DispatchQueue.main.async {
+            // Update Core Data first
+            let entities = self.persistenceController.fetchFridgeItems()
+            print("🔍 Searching among \(entities.count) Core Data entities for name update")
+            
+            if let entity = entities.first(where: { $0.id == item.id }) {
+                print("✅ Found Core Data entity for name update: \(entity.name ?? "Unknown") (ID: \(entity.id?.uuidString ?? "nil"))")
+                self.persistenceController.updateFridgeItemName(entity, name: trimmedName)
+                print("✅ Core Data updated for item name change: \(trimmedName)")
+            } else {
+                print("❌ Core Data entity not found for item name update: \(item.name) (Looking for ID: \(item.id))")
+                print("📋 Available entity IDs: \(entities.compactMap { $0.id?.uuidString }.joined(separator: ", "))")
+                
+                // Try to find by name as fallback
+                if let entity = entities.first(where: { $0.name == item.name }) {
+                    print("🔄 Found entity by name for name update, updating ID mapping")
+                    item.id = entity.id ?? item.id
+                    self.persistenceController.updateFridgeItemName(entity, name: trimmedName)
+                    print("✅ Core Data updated using name fallback for: \(trimmedName)")
+                }
+            }
+            
+            // Update local item after Core Data is updated
+            item.name = trimmedName
+            item.lastUpdated = Date()
+            print("✅ Local item name updated: \(trimmedName)")
+            
+            // Update any shopping list items that reference this inventory item
+            for shoppingItem in self.shoppingList.items {
+                if shoppingItem.inventoryItem?.id == item.id {
+                    shoppingItem.name = trimmedName
+                    
+                    // Update shopping item in Core Data
+                    let shoppingEntities = self.persistenceController.fetchShoppingItems()
+                    if let shoppingEntity = shoppingEntities.first(where: { $0.id == shoppingItem.id }) {
+                        shoppingEntity.name = trimmedName
+                        self.persistenceController.save()
+                        print("✅ Shopping list item name updated: \(trimmedName)")
+                    }
+                }
+            }
+            
+            // Force UI update
+            self.objectWillChange.send()
+            print("📱 UI refresh triggered after item name update")
         }
     }
     

@@ -355,43 +355,43 @@ struct ActiveShoppingView: View {
                 }
             }
             
-            // Plan Change and Complete Shopping Buttons (Equal size)
+            // Plan Change and Complete Buttons (Equal size, smaller)
             HStack(spacing: 12) {
                 // Plan Change Button (50%)
                 Button(action: {
                     showingPlanChangeOptions = true
                 }) {
-                    VStack(spacing: 8) {
+                    HStack(spacing: 8) {
                         Image(systemName: "cart.badge.plus")
-                            .font(.title2)
+                            .font(.body)
                         Text("Plan Change")
-                            .font(.headline)
+                            .font(.body)
                             .fontWeight(.medium)
                     }
-                    .frame(maxWidth: .infinity, minHeight: 80)
+                    .frame(maxWidth: .infinity)
                     .padding()
                     .background(Color.orange)
                     .foregroundColor(.white)
-                    .cornerRadius(16)
+                    .cornerRadius(10)
                 }
                 .frame(maxWidth: .infinity)
                 
-                // Complete Shopping Button (50%)
+                // Complete Button (50%)
                 Button(action: {
                     showingCompleteAlert = true
                 }) {
-                    VStack(spacing: 8) {
+                    HStack(spacing: 8) {
                         Image(systemName: "checkmark.circle.fill")
-                            .font(.title2)
-                        Text("Complete Shopping")
-                            .font(.headline)
+                            .font(.body)
+                        Text("Complete")
+                            .font(.body)
                             .fontWeight(.medium)
                     }
-                    .frame(maxWidth: .infinity, minHeight: 80)
+                    .frame(maxWidth: .infinity)
                     .padding()
                     .background(Color.green)
                     .foregroundColor(.white)
-                    .cornerRadius(16)
+                    .cornerRadius(10)
                 }
                 .frame(maxWidth: .infinity)
             }

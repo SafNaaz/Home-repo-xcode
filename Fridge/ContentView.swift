@@ -366,6 +366,8 @@ struct ItemRowView: View {
     @ObservedObject var item: InventoryItem
     @EnvironmentObject var inventoryManager: InventoryManager
     @State private var isEditing = false
+    @State private var showingEditSheet = false
+    @State private var editedName = ""
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -374,6 +376,16 @@ struct ItemRowView: View {
                     .font(.headline)
                 
                 Spacer()
+                
+                Button(action: {
+                    editedName = item.name
+                    showingEditSheet = true
+                }) {
+                    Image(systemName: "pencil")
+                        .foregroundColor(.blue)
+                        .font(.caption)
+                }
+                .buttonStyle(PlainButtonStyle())
                 
                 Text("\(item.quantityPercentage)%")
                     .font(.subheadline)
@@ -415,6 +427,18 @@ struct ItemRowView: View {
             }
         }
         .padding(.vertical, 4)
+        .sheet(isPresented: $showingEditSheet) {
+            EditItemView(
+                itemName: $editedName,
+                onSave: {
+                    inventoryManager.updateItemName(item, newName: editedName)
+                    showingEditSheet = false
+                },
+                onCancel: {
+                    showingEditSheet = false
+                }
+            )
+        }
     }
 }
 
@@ -560,6 +584,64 @@ struct AddItemView: View {
             if !self.newItemNames.isEmpty {
                 let newFocusIndex = min(index, self.newItemNames.count - 1)
                 self.focusedField = max(0, newFocusIndex)
+            }
+        }
+    }
+}
+
+struct EditItemView: View {
+    @Binding var itemName: String
+    let onSave: () -> Void
+    let onCancel: () -> Void
+    @Environment(\.presentationMode) var presentationMode
+    @FocusState private var isTextFieldFocused: Bool
+    
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 20) {
+                VStack(spacing: 12) {
+                    Text("Edit Item Name")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                    
+                    Text("Update the name of this inventory item")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                .padding()
+                .frame(maxWidth: .infinity)
+                .background(Color(.systemGray6))
+                
+                VStack(spacing: 16) {
+                    TextField("Item name", text: $itemName)
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                        .focused($isTextFieldFocused)
+                        .onSubmit {
+                            if !itemName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                onSave()
+                            }
+                        }
+                    
+                    Spacer()
+                }
+                .padding()
+            }
+            .navigationTitle("Edit Item")
+            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarItems(
+                leading: Button("Cancel") {
+                    onCancel()
+                },
+                trailing: Button("Save") {
+                    onSave()
+                }
+                .disabled(itemName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            )
+        }
+        .onAppear {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                isTextFieldFocused = true
             }
         }
     }

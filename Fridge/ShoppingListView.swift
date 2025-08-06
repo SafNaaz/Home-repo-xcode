@@ -107,16 +107,27 @@ struct GeneratingShoppingView: View {
             // Shopping List Items with Category Sections
             List {
                 if !inventoryManager.shoppingList.items.isEmpty {
+                    // Regular category items
                     ForEach(InventoryCategory.allCases) { category in
                         let categoryItems = inventoryManager.shoppingList.items.filter { item in
-                            item.category == category || (item.isTemporary && category == .grocery)
+                            item.category == category && !item.isTemporary
                         }
                         
                         if !categoryItems.isEmpty {
-                            Section(header: CategorySectionHeader(category: category)) {
+                            Section(header: CategorySectionHeader(category: category, items: categoryItems)) {
                                 ForEach(categoryItems) { item in
                                     GeneratingItemRow(item: item)
                                 }
+                            }
+                        }
+                    }
+                    
+                    // Misc items section
+                    let miscItems = inventoryManager.shoppingList.items.filter { $0.isTemporary }
+                    if !miscItems.isEmpty {
+                        Section(header: MiscSectionHeader(items: miscItems)) {
+                            ForEach(miscItems) { item in
+                                GeneratingItemRow(item: item)
                             }
                         }
                     }
@@ -195,16 +206,27 @@ struct ReadyShoppingView: View {
             
             // Read-only Checklist with Category Sections
             List {
+                // Regular category items
                 ForEach(InventoryCategory.allCases) { category in
                     let categoryItems = inventoryManager.shoppingList.items.filter { item in
-                        item.category == category || (item.isTemporary && category == .grocery)
+                        item.category == category && !item.isTemporary
                     }
                     
                     if !categoryItems.isEmpty {
-                        Section(header: CategorySectionHeader(category: category)) {
+                        Section(header: CategorySectionHeader(category: category, items: categoryItems)) {
                             ForEach(categoryItems) { item in
                                 ReadOnlyItemRow(item: item)
                             }
+                        }
+                    }
+                }
+                
+                // Misc items section
+                let miscItems = inventoryManager.shoppingList.items.filter { $0.isTemporary }
+                if !miscItems.isEmpty {
+                    Section(header: MiscSectionHeader(items: miscItems)) {
+                        ForEach(miscItems) { item in
+                            ReadOnlyItemRow(item: item)
                         }
                     }
                 }
@@ -294,16 +316,27 @@ struct ActiveShoppingView: View {
             
             // Active Checklist with Category Sections
             List {
+                // Regular category items
                 ForEach(InventoryCategory.allCases) { category in
                     let categoryItems = inventoryManager.shoppingList.items.filter { item in
-                        item.category == category || (item.isTemporary && category == .grocery)
+                        item.category == category && !item.isTemporary
                     }
                     
                     if !categoryItems.isEmpty {
-                        Section(header: CategorySectionHeader(category: category)) {
+                        Section(header: CategorySectionHeader(category: category, items: categoryItems)) {
                             ForEach(categoryItems) { item in
                                 SimpleActiveItemRow(item: item)
                             }
+                        }
+                    }
+                }
+                
+                // Misc items section
+                let miscItems = inventoryManager.shoppingList.items.filter { $0.isTemporary }
+                if !miscItems.isEmpty {
+                    Section(header: MiscSectionHeader(items: miscItems)) {
+                        ForEach(miscItems) { item in
+                            SimpleActiveItemRow(item: item)
                         }
                     }
                 }
@@ -350,6 +383,8 @@ struct ActiveShoppingView: View {
 // MARK: - Category Section Header
 struct CategorySectionHeader: View {
     let category: InventoryCategory
+    let items: [ShoppingListItem]
+    @EnvironmentObject var inventoryManager: InventoryManager
     
     var body: some View {
         HStack {
@@ -358,6 +393,48 @@ struct CategorySectionHeader: View {
             Text(category.rawValue)
                 .font(.headline)
                 .foregroundColor(category.color)
+            
+            Spacer()
+            
+            // Show count/total for active shopping
+            if inventoryManager.shoppingState == .shopping {
+                let checkedCount = items.filter { $0.isChecked }.count
+                let totalCount = items.count
+                
+                Text("\(checkedCount)/\(totalCount)")
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.secondary)
+            }
+        }
+    }
+}
+
+// MARK: - Misc Section Header
+struct MiscSectionHeader: View {
+    let items: [ShoppingListItem]
+    @EnvironmentObject var inventoryManager: InventoryManager
+    
+    var body: some View {
+        HStack {
+            Image(systemName: "tag.fill")
+                .foregroundColor(.orange)
+            Text("Misc Items")
+                .font(.headline)
+                .foregroundColor(.orange)
+            
+            Spacer()
+            
+            // Show count/total for active shopping
+            if inventoryManager.shoppingState == .shopping {
+                let checkedCount = items.filter { $0.isChecked }.count
+                let totalCount = items.count
+                
+                Text("\(checkedCount)/\(totalCount)")
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.secondary)
+            }
         }
     }
 }

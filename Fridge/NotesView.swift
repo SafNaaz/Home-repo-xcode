@@ -11,7 +11,7 @@ struct NotesView: View {
         NavigationView {
             VStack(spacing: 0) {
                 if notesManager.notes.isEmpty {
-                    EmptyNotesView()
+                    EmptyNotesView(selectedNote: $selectedNote, showingNoteEditor: $showingNoteEditor)
                 } else {
                     ScrollView {
                         LazyVGrid(columns: [
@@ -82,6 +82,8 @@ struct NotesView: View {
 
 struct EmptyNotesView: View {
     @EnvironmentObject var notesManager: NotesManager
+    @Binding var selectedNote: Note?
+    @Binding var showingNoteEditor: Bool
     
     var body: some View {
         VStack(spacing: 30) {
@@ -102,6 +104,10 @@ struct EmptyNotesView: View {
             Button(action: {
                 if notesManager.canAddNote {
                     notesManager.addNote()
+                    if let newNote = notesManager.notes.first {
+                        selectedNote = newNote
+                        showingNoteEditor = true
+                    }
                 }
             }) {
                 HStack {
@@ -242,16 +248,26 @@ struct NoteEditorView: View {
         NavigationView {
             VStack(spacing: 0) {
                 // Title Field
-                TextField("Note Title", text: $title)
+                TextField("Enter note title...", text: $title)
                     .font(.title2)
                     .fontWeight(.semibold)
                     .padding()
                     .background(Color(.systemGray6))
                 
                 // Content Field
-                TextEditor(text: $content)
-                    .padding()
-                    .background(Color(.systemBackground))
+                ZStack(alignment: .topLeading) {
+                    TextEditor(text: $content)
+                        .padding()
+                        .background(Color(.systemBackground))
+                    
+                    if content.isEmpty {
+                        Text("Start writing your note...")
+                            .foregroundColor(.gray)
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 16)
+                            .allowsHitTesting(false)
+                    }
+                }
             }
             .navigationTitle("Edit Note")
             .navigationBarTitleDisplayMode(.inline)

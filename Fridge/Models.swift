@@ -364,7 +364,7 @@ class NotesManager: ObservableObject {
             return // Don't add if already at limit
         }
         
-        let newNote = Note(title: "New Note", content: "")
+        let newNote = Note(title: "", content: "")
         notes.insert(newNote, at: 0)
         saveNotes()
     }

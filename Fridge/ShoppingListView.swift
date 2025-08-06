@@ -275,7 +275,12 @@ struct ReadyShoppingView: View {
 // MARK: - Active Shopping State
 struct ActiveShoppingView: View {
     @EnvironmentObject var inventoryManager: InventoryManager
+    @EnvironmentObject var settingsManager: SettingsManager
     @State private var showingCompleteAlert = false
+    @State private var showingPlanChangeOptions = false
+    @State private var showingAddMiscItem = false
+    @State private var showingInventorySearch = false
+    @State private var miscItemNames: [String] = [""]
     @State private var refreshTrigger = UUID()
     
     var body: some View {
@@ -350,19 +355,45 @@ struct ActiveShoppingView: View {
                 }
             }
             
-            // Completion Button
-            Button(action: {
-                showingCompleteAlert = true
-            }) {
-                HStack {
-                    Image(systemName: "checkmark.circle.fill")
-                    Text("Complete Shopping")
+            // Plan Change and Complete Shopping Buttons (Equal size)
+            HStack(spacing: 12) {
+                // Plan Change Button (50%)
+                Button(action: {
+                    showingPlanChangeOptions = true
+                }) {
+                    VStack(spacing: 8) {
+                        Image(systemName: "cart.badge.plus")
+                            .font(.title2)
+                        Text("Plan Change")
+                            .font(.headline)
+                            .fontWeight(.medium)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 80)
+                    .padding()
+                    .background(Color.orange)
+                    .foregroundColor(.white)
+                    .cornerRadius(16)
                 }
                 .frame(maxWidth: .infinity)
-                .padding()
-                .background(Color.green)
-                .foregroundColor(.white)
-                .cornerRadius(10)
+                
+                // Complete Shopping Button (50%)
+                Button(action: {
+                    showingCompleteAlert = true
+                }) {
+                    VStack(spacing: 8) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.title2)
+                        Text("Complete Shopping")
+                            .font(.headline)
+                            .fontWeight(.medium)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 80)
+                    .padding()
+                    .background(Color.green)
+                    .foregroundColor(.white)
+                    .cornerRadius(16)
+                }
+                .frame(maxWidth: .infinity)
             }
             .padding()
         }
@@ -383,6 +414,46 @@ struct ActiveShoppingView: View {
                 Text("This will clear the checked misc items from the shopping list. No inventory will be restored.")
             } else {
                 Text("This will clear the shopping list. No items will be restored to inventory.")
+            }
+        }
+        .actionSheet(isPresented: $showingPlanChangeOptions) {
+            ActionSheet(
+                title: Text("Plan Change Options"),
+                message: Text("Choose how you want to add items to your shopping list"),
+                buttons: [
+                    .default(Text("Add Misc Items")) {
+                        showingAddMiscItem = true
+                    },
+                    .default(Text("Search Inventory")) {
+                        showingInventorySearch = true
+                    },
+                    .cancel()
+                ]
+            )
+        }
+        .sheet(isPresented: $showingAddMiscItem) {
+            AddMiscItemView(itemNames: $miscItemNames) {
+                // Add all non-empty misc items
+                for itemName in miscItemNames {
+                    let trimmedName = itemName.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !trimmedName.isEmpty {
+                        inventoryManager.addTemporaryItemToShoppingList(name: trimmedName, settingsManager: settingsManager)
+                        // Add to history for future suggestions
+                        settingsManager.addMiscItemToHistory(trimmedName)
+                    }
+                }
+                // Reset to single empty field
+                miscItemNames = [""]
+                showingAddMiscItem = false
+            }
+        }
+        .sheet(isPresented: $showingInventorySearch) {
+            InventorySearchView { selectedItems in
+                // Add all selected inventory items to shopping list
+                for item in selectedItems {
+                    inventoryManager.addInventoryItemToShoppingList(item, settingsManager: settingsManager)
+                }
+                showingInventorySearch = false
             }
         }
     }
@@ -836,6 +907,400 @@ struct SimpleActiveItemRow: View {
             Spacer()
         }
         .padding(.vertical, 4)
+    }
+}
+
+// MARK: - Add Plan Change Item View
+struct AddPlanChangeItemView: View {
+    @Binding var itemNames: [String]
+    let onAdd: () -> Void
+    @Environment(\.presentationMode) var presentationMode
+    @EnvironmentObject var settingsManager: SettingsManager
+    @FocusState private var focusedField: Int?
+    
+    var hasValidItems: Bool {
+        itemNames.contains { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    }
+    
+    var suggestions: [String] {
+        Array(settingsManager.getMiscItemSuggestions().prefix(5))
+    }
+    
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 0) {
+                // Header with full background
+                VStack(spacing: 12) {
+                    Text("Add Plan Change Items")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                    
+                    Text("Add items you decided to buy while reviewing your shopping list")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                    
+                    Text("Add up to 5 items at once")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .padding()
+                .frame(maxWidth: .infinity)
+                .background(Color(.systemGray6))
+                
+                // Content area with full background
+                ScrollView {
+                    VStack(spacing: 16) {
+                        // Suggestions section (if available)
+                        if !suggestions.isEmpty {
+                            VStack(alignment: .leading, spacing: 12) {
+                                HStack {
+                                    Image(systemName: "lightbulb.fill")
+                                        .foregroundColor(.orange)
+                                    Text("Suggestions from your history")
+                                        .font(.headline)
+                                        .foregroundColor(.orange)
+                                }
+                                .padding(.horizontal)
+                                
+                                LazyVGrid(columns: [
+                                    GridItem(.flexible()),
+                                    GridItem(.flexible()),
+                                    GridItem(.flexible())
+                                ], spacing: 8) {
+                                    ForEach(suggestions, id: \.self) { suggestion in
+                                        Button(action: {
+                                            addSuggestion(suggestion)
+                                        }) {
+                                            Text(suggestion)
+                                                .font(.subheadline)
+                                                .lineLimit(1)
+                                                .padding(.horizontal, 8)
+                                                .padding(.vertical, 6)
+                                                .background(Color.orange.opacity(0.1))
+                                                .foregroundColor(.orange)
+                                                .cornerRadius(12)
+                                                .frame(maxWidth: .infinity)
+                                        }
+                                    }
+                                }
+                                .padding(.horizontal)
+                            }
+                            .padding(.bottom, 8)
+                        }
+                        
+                        // Input fields
+                        ForEach(0..<itemNames.count, id: \.self) { index in
+                            if index < itemNames.count {
+                                HStack {
+                                    Text("\(index + 1).")
+                                        .font(.headline)
+                                        .foregroundColor(.secondary)
+                                        .frame(width: 25, alignment: .leading)
+                                    
+                                    TextField("Enter item name", text: Binding(
+                                        get: { index < itemNames.count ? itemNames[index] : "" },
+                                        set: { newValue in
+                                            if index < itemNames.count {
+                                                itemNames[index] = newValue
+                                            }
+                                        }
+                                    ))
+                                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                                    .focused($focusedField, equals: index)
+                                    .onSubmit {
+                                        // Move to next field or add new one
+                                        if index == itemNames.count - 1 && itemNames.count < 5 {
+                                            addNewField()
+                                        } else if index < itemNames.count - 1 {
+                                            focusedField = index + 1
+                                        }
+                                    }
+                                    
+                                    if itemNames.count > 1 {
+                                        Button(action: {
+                                            removeField(at: index)
+                                        }) {
+                                            Image(systemName: "minus.circle.fill")
+                                                .foregroundColor(.red)
+                                        }
+                                    }
+                                }
+                                .padding(.horizontal)
+                            }
+                        }
+                        
+                        // Add More button
+                        if itemNames.count < 5 {
+                            Button(action: addNewField) {
+                                HStack {
+                                    Image(systemName: "plus.circle.fill")
+                                    Text("Add More")
+                                }
+                                .font(.headline)
+                                .foregroundColor(.orange)
+                                .padding()
+                                .frame(maxWidth: .infinity)
+                                .background(Color(.systemGray6))
+                                .cornerRadius(12)
+                            }
+                            .padding(.horizontal)
+                        }
+                        
+                        Spacer(minLength: 100)
+                    }
+                    .padding(.top, 20)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color(.systemBackground))
+            }
+            .navigationTitle("Plan Change Items")
+            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarItems(
+                leading: Button("Cancel") {
+                    presentationMode.wrappedValue.dismiss()
+                },
+                trailing: Button("Add") {
+                    onAdd()
+                }
+                .disabled(!hasValidItems)
+            )
+        }
+        .onAppear {
+            // Auto-focus on first text field
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                focusedField = 0
+            }
+        }
+    }
+    
+    private func addNewField() {
+        if itemNames.count < 5 {
+            itemNames.append("")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                focusedField = itemNames.count - 1
+            }
+        }
+    }
+    
+    private func removeField(at index: Int) {
+        guard itemNames.count > 1 && index >= 0 && index < itemNames.count else { return }
+        
+        // Clear focus before removing to prevent issues
+        focusedField = nil
+        
+        // Remove the item
+        itemNames.remove(at: index)
+        
+        // Set focus to a safe index after removal
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            if !self.itemNames.isEmpty {
+                let newFocusIndex = min(index, self.itemNames.count - 1)
+                self.focusedField = max(0, newFocusIndex)
+            }
+        }
+    }
+    
+    private func addSuggestion(_ suggestion: String) {
+        // Find first empty field or add new field
+        if let emptyIndex = itemNames.firstIndex(where: { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) {
+            itemNames[emptyIndex] = suggestion
+            focusedField = emptyIndex
+        } else if itemNames.count < 5 {
+            itemNames.append(suggestion)
+            focusedField = itemNames.count - 1
+        }
+    }
+}
+
+// MARK: - Inventory Search View
+struct InventorySearchView: View {
+    let onItemsSelected: ([InventoryItem]) -> Void
+    @Environment(\.presentationMode) var presentationMode
+    @EnvironmentObject var inventoryManager: InventoryManager
+    @EnvironmentObject var settingsManager: SettingsManager
+    @State private var searchText = ""
+    @State private var selectedItems: Set<UUID> = []
+    
+    var filteredItems: [InventoryItem] {
+        let allItems = inventoryManager.allItems
+        if searchText.isEmpty {
+            return allItems
+        } else {
+            return allItems.filter { item in
+                item.name.localizedCaseInsensitiveContains(searchText) ||
+                item.subcategory.rawValue.localizedCaseInsensitiveContains(searchText) ||
+                item.category.rawValue.localizedCaseInsensitiveContains(searchText)
+            }
+        }
+    }
+    
+    var selectedItemsArray: [InventoryItem] {
+        return filteredItems.filter { selectedItems.contains($0.id) }
+    }
+    
+    private func isItemInShoppingList(_ item: InventoryItem) -> Bool {
+        return inventoryManager.shoppingList.items.contains { shoppingItem in
+            shoppingItem.inventoryItem?.id == item.id
+        }
+    }
+    
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 0) {
+                // Header with search
+                VStack(spacing: 12) {
+                    Text("Search Inventory")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                    
+                    Text("Select items from your household inventory to add to shopping list")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                    
+                    if !selectedItems.isEmpty {
+                        Text("\(selectedItems.count) items selected")
+                            .font(.caption)
+                            .foregroundColor(.blue)
+                            .fontWeight(.semibold)
+                    }
+                    
+                    SearchBar(text: $searchText)
+                }
+                .padding()
+                .background(Color(.systemGray6))
+                
+                // Items list
+                List {
+                    ForEach(InventoryCategory.allCases) { category in
+                        let categoryItems = filteredItems.filter { $0.category == category }
+                        
+                        if !categoryItems.isEmpty {
+                            Section(header: Text(category.rawValue)) {
+                                ForEach(categoryItems) { item in
+                                    MultiSelectInventoryItemRow(
+                                        item: item,
+                                        isSelected: selectedItems.contains(item.id),
+                                        isInShoppingList: isItemInShoppingList(item)
+                                    ) {
+                                        if !isItemInShoppingList(item) {
+                                            toggleSelection(for: item)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                .listStyle(GroupedListStyle())
+            }
+            .navigationTitle("Add from Inventory")
+            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarItems(
+                leading: Button("Cancel") {
+                    presentationMode.wrappedValue.dismiss()
+                },
+                trailing: Button("Add (\(selectedItems.count))") {
+                    let itemsToAdd = inventoryManager.allItems.filter { selectedItems.contains($0.id) }
+                    for item in itemsToAdd {
+                        inventoryManager.addInventoryItemToShoppingList(item, settingsManager: settingsManager)
+                    }
+                    presentationMode.wrappedValue.dismiss()
+                }
+                .disabled(selectedItems.isEmpty)
+            )
+        }
+    }
+    
+    private func toggleSelection(for item: InventoryItem) {
+        if selectedItems.contains(item.id) {
+            selectedItems.remove(item.id)
+        } else {
+            selectedItems.insert(item.id)
+        }
+    }
+}
+
+// MARK: - Search Bar
+struct SearchBar: View {
+    @Binding var text: String
+    
+    var body: some View {
+        HStack {
+            Image(systemName: "magnifyingglass")
+                .foregroundColor(.secondary)
+            
+            TextField("Search items...", text: $text)
+                .textFieldStyle(RoundedBorderTextFieldStyle())
+            
+            if !text.isEmpty {
+                Button(action: {
+                    text = ""
+                }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.secondary)
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Multi-Select Inventory Item Row
+struct MultiSelectInventoryItemRow: View {
+    let item: InventoryItem
+    let isSelected: Bool
+    let isInShoppingList: Bool
+    let onTap: () -> Void
+    
+    var body: some View {
+        Button(action: onTap) {
+            HStack {
+                // Selection indicator
+                if isInShoppingList {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(.green)
+                        .font(.title2)
+                } else {
+                    Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                        .foregroundColor(isSelected ? .blue : .gray)
+                        .font(.title2)
+                }
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text(item.name)
+                            .font(.headline)
+                            .foregroundColor(isInShoppingList ? .secondary : .primary)
+                        
+                        if isInShoppingList {
+                            Text("(In List)")
+                                .font(.caption)
+                                .foregroundColor(.green)
+                                .fontWeight(.semibold)
+                        }
+                    }
+                    
+                    HStack {
+                        Label(item.subcategory.rawValue, systemImage: item.subcategory.icon)
+                            .font(.caption)
+                            .foregroundColor(isInShoppingList ? item.subcategory.color.opacity(0.6) : item.subcategory.color)
+                        
+                        Text("• \(item.quantityPercentage)% left")
+                            .font(.caption)
+                            .foregroundColor(isInShoppingList ? .secondary : (item.needsRestocking ? .red : .secondary))
+                    }
+                }
+                
+                Spacer()
+            }
+            .padding(.vertical, 4)
+            .background(isSelected ? Color.blue.opacity(0.1) : Color.clear)
+            .cornerRadius(8)
+            .opacity(isInShoppingList ? 0.6 : 1.0)
+        }
+        .buttonStyle(PlainButtonStyle())
+        .disabled(isInShoppingList)
     }
 }
 

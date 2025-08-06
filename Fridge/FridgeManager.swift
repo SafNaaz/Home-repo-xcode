@@ -324,7 +324,7 @@ class InventoryManager: ObservableObject {
     }
     
     func addTemporaryItemToShoppingList(name: String, settingsManager: SettingsManager) {
-        guard shoppingState == .generating else { return }
+        guard shoppingState == .generating || shoppingState == .shopping else { return }
         
         print("➕ Adding temporary item: \(name)")
         
@@ -338,6 +338,24 @@ class InventoryManager: ObservableObject {
             settingsManager.addMiscItemToHistory(name)
             
             print("✅ Temporary item added: \(name)")
+            
+            // Force UI update
+            self.objectWillChange.send()
+        }
+    }
+    
+    func addInventoryItemToShoppingList(_ item: InventoryItem, settingsManager: SettingsManager) {
+        guard shoppingState == .shopping || shoppingState == .generating else { return }
+        
+        print("➕ Adding inventory item to shopping list: \(item.name)")
+        
+        DispatchQueue.main.async {
+            let entity = self.persistenceController.createShoppingItem(name: item.name, fridgeItemId: item.id, isTemporary: false)
+            let shoppingItem = ShoppingListItem(name: item.name, inventoryItem: item)
+            shoppingItem.id = entity.id ?? UUID()
+            self.shoppingList.addItem(shoppingItem)
+            
+            print("✅ Inventory item added to shopping list: \(item.name)")
             
             // Force UI update
             self.objectWillChange.send()
@@ -406,5 +424,10 @@ class InventoryManager: ObservableObject {
             item.id = entity.id ?? item.id
             inventoryItems.append(item)
         }
+    }
+    
+    // MARK: - Computed Properties
+    var allItems: [InventoryItem] {
+        return inventoryItems
     }
 }

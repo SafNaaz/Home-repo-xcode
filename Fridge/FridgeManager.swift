@@ -142,6 +142,37 @@ class FridgeManager: ObservableObject {
             // Remove from local array on main thread
             self.fridgeItems.removeAll { $0.id == item.id }
             print("✅ Local item removed: \(item.name)")
+            
+            // Also remove any shopping list items that reference this fridge item
+            self.removeFromShoppingListIfExists(item)
+        }
+    }
+    
+    private func removeFromShoppingListIfExists(_ fridgeItem: FridgeItem) {
+        // Find shopping list items that reference this fridge item
+        let itemsToRemove = shoppingList.items.filter { shoppingItem in
+            shoppingItem.fridgeItem?.id == fridgeItem.id
+        }
+        
+        if !itemsToRemove.isEmpty {
+            print("🛒 Found \(itemsToRemove.count) shopping list items to remove for: \(fridgeItem.name)")
+            
+            for shoppingItem in itemsToRemove {
+                // Delete from Core Data
+                let entities = persistenceController.fetchShoppingItems()
+                if let entity = entities.first(where: { $0.id == shoppingItem.id }) {
+                    persistenceController.deleteShoppingItem(entity)
+                    print("✅ Core Data shopping entity deleted for: \(shoppingItem.name)")
+                }
+                
+                // Remove from local shopping list
+                shoppingList.removeItem(shoppingItem)
+                print("✅ Shopping list item removed: \(shoppingItem.name)")
+            }
+            
+            // Force UI update for shopping list
+            shoppingList.objectWillChange.send()
+            objectWillChange.send()
         }
     }
     

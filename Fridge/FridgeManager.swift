@@ -170,6 +170,14 @@ class FridgeManager: ObservableObject {
                 print("✅ Shopping list item removed: \(shoppingItem.name)")
             }
             
+            // Check if shopping list is now empty and stop shopping flow if needed
+            if shoppingList.items.isEmpty {
+                print("🛑 Shopping list is now empty, stopping shopping flow")
+                shoppingState = .empty
+                persistenceController.saveShoppingState(shoppingState)
+                print("✅ Shopping flow stopped due to empty list")
+            }
+            
             // Force UI update for shopping list
             shoppingList.objectWillChange.send()
             objectWillChange.send()

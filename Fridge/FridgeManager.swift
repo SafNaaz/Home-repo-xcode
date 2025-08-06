@@ -323,7 +323,7 @@ class InventoryManager: ObservableObject {
         return Array(sortedItems.filter { !$0.needsRestocking }.prefix(5))
     }
     
-    func addTemporaryItemToShoppingList(name: String) {
+    func addTemporaryItemToShoppingList(name: String, settingsManager: SettingsManager) {
         guard shoppingState == .generating else { return }
         
         print("➕ Adding temporary item: \(name)")
@@ -333,6 +333,10 @@ class InventoryManager: ObservableObject {
             let tempItem = ShoppingListItem(name: name, isTemporary: true)
             tempItem.id = entity.id ?? UUID()
             self.shoppingList.addItem(tempItem)
+            
+            // Add to misc item history
+            settingsManager.addMiscItemToHistory(name)
+            
             print("✅ Temporary item added: \(name)")
             
             // Force UI update

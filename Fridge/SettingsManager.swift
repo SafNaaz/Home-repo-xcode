@@ -11,6 +11,7 @@ class SettingsManager: ObservableObject {
     @Published var isSecondReminderEnabled: Bool = false
     @Published var reminderTime1: Date = Calendar.current.date(from: DateComponents(hour: 9, minute: 0)) ?? Date()
     @Published var reminderTime2: Date = Calendar.current.date(from: DateComponents(hour: 18, minute: 0)) ?? Date()
+    @Published var miscItemHistory: [String] = []
     
     private let userDefaults = UserDefaults.standard
     
@@ -35,6 +36,12 @@ class SettingsManager: ObservableObject {
            let time2 = try? JSONDecoder().decode(Date.self, from: time2Data) {
             reminderTime2 = time2
         }
+        
+        // Load misc item history
+        if let historyData = userDefaults.data(forKey: "miscItemHistory"),
+           let history = try? JSONDecoder().decode([String].self, from: historyData) {
+            miscItemHistory = history
+        }
     }
     
     func saveSettings() {
@@ -50,6 +57,11 @@ class SettingsManager: ObservableObject {
         
         if let time2Data = try? JSONEncoder().encode(reminderTime2) {
             userDefaults.set(time2Data, forKey: "reminderTime2")
+        }
+        
+        // Save misc item history
+        if let historyData = try? JSONEncoder().encode(miscItemHistory) {
+            userDefaults.set(historyData, forKey: "miscItemHistory")
         }
     }
     
@@ -196,8 +208,33 @@ class SettingsManager: ObservableObject {
         return formatter.string(from: date)
     }
     
+    // MARK: - Misc Item History
+    func addMiscItemToHistory(_ itemName: String) {
+        let trimmedName = itemName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else { return }
+        
+        // Remove if already exists to avoid duplicates
+        miscItemHistory.removeAll { $0.lowercased() == trimmedName.lowercased() }
+        
+        // Add to beginning of array
+        miscItemHistory.insert(trimmedName, at: 0)
+        
+        // Keep only last 20 items
+        if miscItemHistory.count > 20 {
+            miscItemHistory = Array(miscItemHistory.prefix(20))
+        }
+        
+        saveSettings()
+    }
+    
+    func getMiscItemSuggestions() -> [String] {
+        return Array(miscItemHistory.prefix(10)) // Return top 10 suggestions
+    }
+    
     // MARK: - Data Management
     func clearAllData(inventoryManager: InventoryManager) {
         inventoryManager.clearAllData()
+        miscItemHistory.removeAll()
+        saveSettings()
     }
 }

@@ -76,8 +76,9 @@ struct EmptyShoppingView: View {
 // MARK: - Generating State
 struct GeneratingShoppingView: View {
     @EnvironmentObject var inventoryManager: InventoryManager
+    @EnvironmentObject var settingsManager: SettingsManager
     @State private var showingAddMiscItem = false
-    @State private var miscItemName = ""
+    @State private var miscItemNames: [String] = [""]
     @State private var showingItemsInfo = false
     
     var body: some View {
@@ -172,11 +173,18 @@ struct GeneratingShoppingView: View {
         }
         .foregroundColor(.red))
         .sheet(isPresented: $showingAddMiscItem) {
-            AddMiscItemView(itemName: $miscItemName) {
-                if !miscItemName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    inventoryManager.addTemporaryItemToShoppingList(name: miscItemName.trimmingCharacters(in: .whitespacesAndNewlines))
-                    miscItemName = ""
+            AddMiscItemView(itemNames: $miscItemNames) {
+                // Add all non-empty misc items
+                for itemName in miscItemNames {
+                    let trimmedName = itemName.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !trimmedName.isEmpty {
+                        inventoryManager.addTemporaryItemToShoppingList(name: trimmedName, settingsManager: settingsManager)
+                        // Add to history for future suggestions
+                        settingsManager.addMiscItemToHistory(trimmedName)
+                    }
                 }
+                // Reset to single empty field
+                miscItemNames = [""]
                 showingAddMiscItem = false
             }
         }
@@ -589,38 +597,149 @@ struct ActiveItemRow: View {
 
 // MARK: - Add Misc Item View
 struct AddMiscItemView: View {
-    @Binding var itemName: String
+    @Binding var itemNames: [String]
     let onAdd: () -> Void
     @Environment(\.presentationMode) var presentationMode
+    @EnvironmentObject var settingsManager: SettingsManager
+    @FocusState private var focusedField: Int?
+    
+    var hasValidItems: Bool {
+        itemNames.contains { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    }
+    
+    var suggestions: [String] {
+        Array(settingsManager.getMiscItemSuggestions().prefix(5))
+    }
     
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
-                // Header with consistent grey background
+                // Header with full background
                 VStack(spacing: 12) {
-                    Text("Add Misc Item")
+                    Text("Add Misc Items")
                         .font(.title2)
                         .fontWeight(.bold)
                     
-                    Text("Add items that aren't tracked in your household inventory.")
+                    Text("Add items that aren't tracked in your household inventory")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
+                    
+                    Text("Add up to 5 items at once")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
                 .padding()
+                .frame(maxWidth: .infinity)
                 .background(Color(.systemGray6))
                 
-                // Content area
-                VStack(spacing: 20) {
-                    TextField("Item name (e.g., Cleaning supplies)", text: $itemName)
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
-                        .padding(.horizontal)
-                    
-                    Spacer()
+                // Content area with full background
+                ScrollView {
+                    VStack(spacing: 16) {
+                        // Suggestions section (if available)
+                        if !suggestions.isEmpty {
+                            VStack(alignment: .leading, spacing: 12) {
+                                HStack {
+                                    Image(systemName: "lightbulb.fill")
+                                        .foregroundColor(.orange)
+                                    Text("Suggestions from your history")
+                                        .font(.headline)
+                                        .foregroundColor(.orange)
+                                }
+                                .padding(.horizontal)
+                                
+                                LazyVGrid(columns: [
+                                    GridItem(.flexible()),
+                                    GridItem(.flexible()),
+                                    GridItem(.flexible())
+                                ], spacing: 8) {
+                                    ForEach(suggestions, id: \.self) { suggestion in
+                                        Button(action: {
+                                            addSuggestion(suggestion)
+                                        }) {
+                                            Text(suggestion)
+                                                .font(.subheadline)
+                                                .lineLimit(1)
+                                                .padding(.horizontal, 8)
+                                                .padding(.vertical, 6)
+                                                .background(Color.blue.opacity(0.1))
+                                                .foregroundColor(.blue)
+                                                .cornerRadius(12)
+                                                .frame(maxWidth: .infinity)
+                                        }
+                                    }
+                                }
+                                .padding(.horizontal)
+                            }
+                            .padding(.bottom, 8)
+                        }
+                        
+                        // Input fields
+                        ForEach(0..<itemNames.count, id: \.self) { index in
+                            if index < itemNames.count {
+                                HStack {
+                                    Text("\(index + 1).")
+                                        .font(.headline)
+                                        .foregroundColor(.secondary)
+                                        .frame(width: 25, alignment: .leading)
+                                    
+                                    TextField("Enter item name", text: Binding(
+                                        get: { index < itemNames.count ? itemNames[index] : "" },
+                                        set: { newValue in
+                                            if index < itemNames.count {
+                                                itemNames[index] = newValue
+                                            }
+                                        }
+                                    ))
+                                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                                    .focused($focusedField, equals: index)
+                                    .onSubmit {
+                                        // Move to next field or add new one
+                                        if index == itemNames.count - 1 && itemNames.count < 5 {
+                                            addNewField()
+                                        } else if index < itemNames.count - 1 {
+                                            focusedField = index + 1
+                                        }
+                                    }
+                                    
+                                    if itemNames.count > 1 {
+                                        Button(action: {
+                                            removeField(at: index)
+                                        }) {
+                                            Image(systemName: "minus.circle.fill")
+                                                .foregroundColor(.red)
+                                        }
+                                    }
+                                }
+                                .padding(.horizontal)
+                            }
+                        }
+                        
+                        // Add More button
+                        if itemNames.count < 5 {
+                            Button(action: addNewField) {
+                                HStack {
+                                    Image(systemName: "plus.circle.fill")
+                                    Text("Add More")
+                                }
+                                .font(.headline)
+                                .foregroundColor(.blue)
+                                .padding()
+                                .frame(maxWidth: .infinity)
+                                .background(Color(.systemGray6))
+                                .cornerRadius(12)
+                            }
+                            .padding(.horizontal)
+                        }
+                        
+                        Spacer(minLength: 100)
+                    }
+                    .padding(.top, 20)
                 }
-                .padding(.top, 20)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color(.systemBackground))
             }
-            .navigationTitle("Add Misc Item")
+            .navigationTitle("Add Misc Items")
             .navigationBarTitleDisplayMode(.inline)
             .navigationBarItems(
                 leading: Button("Cancel") {
@@ -629,8 +748,52 @@ struct AddMiscItemView: View {
                 trailing: Button("Add") {
                     onAdd()
                 }
-                .disabled(itemName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .disabled(!hasValidItems)
             )
+        }
+        .onAppear {
+            // Auto-focus on first text field
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                focusedField = 0
+            }
+        }
+    }
+    
+    private func addNewField() {
+        if itemNames.count < 5 {
+            itemNames.append("")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                focusedField = itemNames.count - 1
+            }
+        }
+    }
+    
+    private func removeField(at index: Int) {
+        guard itemNames.count > 1 && index >= 0 && index < itemNames.count else { return }
+        
+        // Clear focus before removing to prevent issues
+        focusedField = nil
+        
+        // Remove the item
+        itemNames.remove(at: index)
+        
+        // Set focus to a safe index after removal
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            if !self.itemNames.isEmpty {
+                let newFocusIndex = min(index, self.itemNames.count - 1)
+                self.focusedField = max(0, newFocusIndex)
+            }
+        }
+    }
+    
+    private func addSuggestion(_ suggestion: String) {
+        // Find first empty field or add new field
+        if let emptyIndex = itemNames.firstIndex(where: { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) {
+            itemNames[emptyIndex] = suggestion
+            focusedField = emptyIndex
+        } else if itemNames.count < 5 {
+            itemNames.append(suggestion)
+            focusedField = itemNames.count - 1
         }
     }
 }

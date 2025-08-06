@@ -453,14 +453,22 @@ struct AddItemView: View {
                 // Content area with full background
                 ScrollView {
                     VStack(spacing: 16) {
-                        ForEach(Array(newItemNames.enumerated()), id: \.offset) { index, itemName in
-                            HStack {
-                                Text("\(index + 1).")
-                                    .font(.headline)
-                                    .foregroundColor(.secondary)
-                                    .frame(width: 25, alignment: .leading)
-                                
-                                TextField("Enter item name", text: $newItemNames[index])
+                        ForEach(0..<newItemNames.count, id: \.self) { index in
+                            if index < newItemNames.count {
+                                HStack {
+                                    Text("\(index + 1).")
+                                        .font(.headline)
+                                        .foregroundColor(.secondary)
+                                        .frame(width: 25, alignment: .leading)
+                                    
+                                    TextField("Enter item name", text: Binding(
+                                        get: { index < newItemNames.count ? newItemNames[index] : "" },
+                                        set: { newValue in
+                                            if index < newItemNames.count {
+                                                newItemNames[index] = newValue
+                                            }
+                                        }
+                                    ))
                                     .textFieldStyle(RoundedBorderTextFieldStyle())
                                     .focused($focusedField, equals: index)
                                     .onSubmit {
@@ -471,17 +479,18 @@ struct AddItemView: View {
                                             focusedField = index + 1
                                         }
                                     }
-                                
-                                if newItemNames.count > 1 {
-                                    Button(action: {
-                                        removeField(at: index)
-                                    }) {
-                                        Image(systemName: "minus.circle.fill")
-                                            .foregroundColor(.red)
+                                    
+                                    if newItemNames.count > 1 {
+                                        Button(action: {
+                                            removeField(at: index)
+                                        }) {
+                                            Image(systemName: "minus.circle.fill")
+                                                .foregroundColor(.red)
+                                        }
                                     }
                                 }
+                                .padding(.horizontal)
                             }
-                            .padding(.horizontal)
                         }
                         
                         // Add More button
@@ -538,11 +547,19 @@ struct AddItemView: View {
     }
     
     private func removeField(at index: Int) {
-        if newItemNames.count > 1 {
-            newItemNames.remove(at: index)
-            // Adjust focus if needed
-            if let currentFocus = focusedField, currentFocus >= newItemNames.count {
-                focusedField = max(0, newItemNames.count - 1)
+        guard newItemNames.count > 1 && index >= 0 && index < newItemNames.count else { return }
+        
+        // Clear focus before removing to prevent issues
+        focusedField = nil
+        
+        // Remove the item
+        newItemNames.remove(at: index)
+        
+        // Set focus to a safe index after removal
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            if !self.newItemNames.isEmpty {
+                let newFocusIndex = min(index, self.newItemNames.count - 1)
+                self.focusedField = max(0, newFocusIndex)
             }
         }
     }

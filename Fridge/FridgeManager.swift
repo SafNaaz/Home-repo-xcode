@@ -130,8 +130,8 @@ class InventoryManager: ObservableObject {
         print("➕ Adding custom item: \(name) to \(subcategory.rawValue)")
         
         DispatchQueue.main.async {
-            let entity = self.persistenceController.createFridgeItem(name: name, section: subcategory, quantity: 1.0, isCustom: true)
-            let newItem = InventoryItem(name: name, quantity: 1.0, subcategory: subcategory, isCustom: true)
+            let entity = self.persistenceController.createFridgeItem(name: name, section: subcategory, quantity: 0.0, isCustom: true)
+            let newItem = InventoryItem(name: name, quantity: 0.0, subcategory: subcategory, isCustom: true)
             
             // Ensure the IDs match exactly
             if let entityId = entity.id {

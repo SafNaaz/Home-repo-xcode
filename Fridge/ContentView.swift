@@ -310,7 +310,7 @@ struct SubcategoryDetailView: View {
     let subcategory: InventorySubcategory
     @EnvironmentObject var inventoryManager: InventoryManager
     @State private var showingAddItem = false
-    @State private var newItemName = ""
+    @State private var newItemNames: [String] = [""]
     
     var body: some View {
         List {
@@ -325,11 +325,16 @@ struct SubcategoryDetailView: View {
             showingAddItem = true
         })
         .sheet(isPresented: $showingAddItem) {
-            AddItemView(subcategory: subcategory, newItemName: $newItemName) {
-                if !newItemName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    inventoryManager.addCustomItem(name: newItemName.trimmingCharacters(in: .whitespacesAndNewlines), subcategory: subcategory)
-                    newItemName = ""
+            AddItemView(subcategory: subcategory, newItemNames: $newItemNames) {
+                // Add all non-empty items
+                for itemName in newItemNames {
+                    let trimmedName = itemName.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !trimmedName.isEmpty {
+                        inventoryManager.addCustomItem(name: trimmedName, subcategory: subcategory)
+                    }
                 }
+                // Reset to single empty field
+                newItemNames = [""]
                 showingAddItem = false
             }
         }
@@ -414,37 +419,95 @@ struct ItemRowView: View {
 
 struct AddItemView: View {
     let subcategory: InventorySubcategory
-    @Binding var newItemName: String
+    @Binding var newItemNames: [String]
     let onAdd: () -> Void
     @Environment(\.presentationMode) var presentationMode
+    @FocusState private var focusedField: Int?
+    
+    var hasValidItems: Bool {
+        newItemNames.contains { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    }
     
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
-                // Header with consistent grey background
+                // Header with full background
                 VStack(spacing: 12) {
-                    Text("Add New Item")
+                    Text("Add New Items")
                         .font(.title2)
                         .fontWeight(.bold)
                     
                     Text("Adding to \(subcategory.rawValue)")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
+                    
+                    Text("Add up to 5 items at once")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
                 .padding()
+                .frame(maxWidth: .infinity)
                 .background(Color(.systemGray6))
                 
-                // Content area
-                VStack(spacing: 20) {
-                    TextField("Item name", text: $newItemName)
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
-                        .padding(.horizontal)
-                    
-                    Spacer()
+                // Content area with full background
+                ScrollView {
+                    VStack(spacing: 16) {
+                        ForEach(Array(newItemNames.enumerated()), id: \.offset) { index, itemName in
+                            HStack {
+                                Text("\(index + 1).")
+                                    .font(.headline)
+                                    .foregroundColor(.secondary)
+                                    .frame(width: 25, alignment: .leading)
+                                
+                                TextField("Enter item name", text: $newItemNames[index])
+                                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                                    .focused($focusedField, equals: index)
+                                    .onSubmit {
+                                        // Move to next field or add new one
+                                        if index == newItemNames.count - 1 && newItemNames.count < 5 {
+                                            addNewField()
+                                        } else if index < newItemNames.count - 1 {
+                                            focusedField = index + 1
+                                        }
+                                    }
+                                
+                                if newItemNames.count > 1 {
+                                    Button(action: {
+                                        removeField(at: index)
+                                    }) {
+                                        Image(systemName: "minus.circle.fill")
+                                            .foregroundColor(.red)
+                                    }
+                                }
+                            }
+                            .padding(.horizontal)
+                        }
+                        
+                        // Add More button
+                        if newItemNames.count < 5 {
+                            Button(action: addNewField) {
+                                HStack {
+                                    Image(systemName: "plus.circle.fill")
+                                    Text("Add More")
+                                }
+                                .font(.headline)
+                                .foregroundColor(.blue)
+                                .padding()
+                                .frame(maxWidth: .infinity)
+                                .background(Color(.systemGray6))
+                                .cornerRadius(12)
+                            }
+                            .padding(.horizontal)
+                        }
+                        
+                        Spacer(minLength: 100)
+                    }
+                    .padding(.top, 20)
                 }
-                .padding(.top, 20)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color(.systemBackground))
             }
-            .navigationTitle("Add Item")
+            .navigationTitle("Add Items")
             .navigationBarTitleDisplayMode(.inline)
             .navigationBarItems(
                 leading: Button("Cancel") {
@@ -453,8 +516,33 @@ struct AddItemView: View {
                 trailing: Button("Add") {
                     onAdd()
                 }
-                .disabled(newItemName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .disabled(!hasValidItems)
             )
+        }
+        .onAppear {
+            // Auto-focus on first text field
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                focusedField = 0
+            }
+        }
+    }
+    
+    private func addNewField() {
+        if newItemNames.count < 5 {
+            newItemNames.append("")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                focusedField = newItemNames.count - 1
+            }
+        }
+    }
+    
+    private func removeField(at index: Int) {
+        if newItemNames.count > 1 {
+            newItemNames.remove(at: index)
+            // Adjust focus if needed
+            if let currentFocus = focusedField, currentFocus >= newItemNames.count {
+                focusedField = max(0, newItemNames.count - 1)
+            }
         }
     }
 }

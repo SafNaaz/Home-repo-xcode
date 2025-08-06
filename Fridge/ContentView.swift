@@ -90,6 +90,11 @@ struct InventoryView: View {
     var body: some View {
         NavigationStack(path: $navigationPath) {
             VStack(spacing: 0) {
+                // Urgent Alerts Banner (if any)
+                if !inventoryManager.urgentAttentionItems.isEmpty {
+                    UrgentAlertsBanner(selectedTab: $selectedTab)
+                }
+                
                 // Quick Stats Header
                 HStack {
                     VStack(alignment: .leading) {
@@ -873,6 +878,136 @@ struct AuthenticationView: View {
         } message: {
             Text("Unable to authenticate. Please try again.")
         }
+    }
+}
+
+// MARK: - Urgent Alerts Banner
+struct UrgentAlertsBanner: View {
+    @EnvironmentObject var inventoryManager: InventoryManager
+    @Binding var selectedTab: Int
+    
+    init(selectedTab: Binding<Int> = .constant(0)) {
+        self._selectedTab = selectedTab
+    }
+    
+    var body: some View {
+        VStack(spacing: 8) {
+            // Critical Kitchen Items Alert
+            if !inventoryManager.criticalKitchenItems.isEmpty {
+                Button(action: {
+                    selectedTab = 2 // Switch to Insights tab
+                }) {
+                    HStack {
+                        Image(systemName: "exclamationmark.octagon.fill")
+                            .foregroundColor(.red)
+                            .font(.title2)
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("🚨 URGENT: Kitchen Items Expired")
+                                .font(.headline)
+                                .fontWeight(.bold)
+                                .foregroundColor(.red)
+                            
+                            Text("\(inventoryManager.criticalKitchenItems.count) kitchen items need immediate attention (2+ weeks old)")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        Spacer()
+                        
+                        Image(systemName: "chevron.right")
+                            .foregroundColor(.red)
+                            .font(.caption)
+                    }
+                    .padding()
+                    .background(Color.red.opacity(0.1))
+                    .cornerRadius(12)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.red.opacity(0.3), lineWidth: 1)
+                    )
+                }
+                .buttonStyle(PlainButtonStyle())
+            }
+            
+            // Stale Other Items Alert
+            if !inventoryManager.staleOtherItems.isEmpty {
+                Button(action: {
+                    selectedTab = 2 // Switch to Insights tab
+                }) {
+                    HStack {
+                        Image(systemName: "clock.badge.exclamationmark.fill")
+                            .foregroundColor(.orange)
+                            .font(.title2)
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("⚠️ Stale Items Alert")
+                                .font(.headline)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.orange)
+                            
+                            Text("\(inventoryManager.staleOtherItems.count) items haven't been updated in 2+ months")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        Spacer()
+                        
+                        Image(systemName: "chevron.right")
+                            .foregroundColor(.orange)
+                            .font(.caption)
+                    }
+                    .padding()
+                    .background(Color.orange.opacity(0.1))
+                    .cornerRadius(12)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.orange.opacity(0.3), lineWidth: 1)
+                    )
+                }
+                .buttonStyle(PlainButtonStyle())
+            }
+            
+            // Near Expiry Items Alert
+            if !inventoryManager.nearExpiryItems.isEmpty {
+                Button(action: {
+                    selectedTab = 2 // Switch to Insights tab
+                }) {
+                    HStack {
+                        Image(systemName: "clock.arrow.circlepath")
+                            .foregroundColor(.yellow)
+                            .font(.title2)
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Items Need Attention Soon")
+                                .font(.headline)
+                                .fontWeight(.medium)
+                                .foregroundColor(.primary)
+                            
+                            Text("\(inventoryManager.nearExpiryItems.count) items approaching update deadline")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        Spacer()
+                        
+                        Image(systemName: "chevron.right")
+                            .foregroundColor(.yellow)
+                            .font(.caption)
+                    }
+                    .padding()
+                    .background(Color.yellow.opacity(0.1))
+                    .cornerRadius(12)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.yellow.opacity(0.3), lineWidth: 1)
+                    )
+                }
+                .buttonStyle(PlainButtonStyle())
+            }
+        }
+        .padding(.horizontal)
+        .padding(.top, 8)
     }
 }
 

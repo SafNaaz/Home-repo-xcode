@@ -513,6 +513,49 @@ class InventoryManager: ObservableObject {
         return components.day ?? 0
     }
     
+    // MARK: - Time-based Alert Methods
+    func getExpiryThreshold(for item: InventoryItem) -> Int {
+        // Kitchen items: 14 days, Others: 60 days
+        return item.category == .fridge ? 14 : 60
+    }
+    
+    func isItemExpired(_ item: InventoryItem) -> Bool {
+        let daysSince = daysSinceLastUpdate(item)
+        let threshold = getExpiryThreshold(for: item)
+        return daysSince >= threshold
+    }
+    
+    func isItemNearExpiry(_ item: InventoryItem) -> Bool {
+        let daysSince = daysSinceLastUpdate(item)
+        let threshold = getExpiryThreshold(for: item)
+        let warningThreshold = Int(Double(threshold) * 0.8) // 80% of threshold
+        return daysSince >= warningThreshold && daysSince < threshold
+    }
+    
+    var expiredItems: [InventoryItem] {
+        return inventoryItems.filter { isItemExpired($0) }
+    }
+    
+    var nearExpiryItems: [InventoryItem] {
+        return inventoryItems.filter { isItemNearExpiry($0) }
+    }
+    
+    var criticalKitchenItems: [InventoryItem] {
+        return inventoryItems.filter { item in
+            item.category == .fridge && daysSinceLastUpdate(item) >= 14
+        }
+    }
+    
+    var staleOtherItems: [InventoryItem] {
+        return inventoryItems.filter { item in
+            item.category != .fridge && daysSinceLastUpdate(item) >= 60
+        }
+    }
+    
+    var urgentAttentionItems: [InventoryItem] {
+        return expiredItems + nearExpiryItems
+    }
+    
     var estimatedShoppingFrequency: String {
         let totalPurchases = inventoryItems.reduce(0) { $0 + $1.purchaseHistory.count }
         guard totalPurchases > 0 else { return "No data yet" }
@@ -575,6 +618,42 @@ class InventoryManager: ObservableObject {
     func getSmartRecommendations() -> [SmartRecommendation] {
         var recommendations: [SmartRecommendation] = []
         
+        // HIGHEST PRIORITY: Expired Kitchen Items (14+ days)
+        let expiredKitchenItems = criticalKitchenItems
+        if !expiredKitchenItems.isEmpty {
+            recommendations.append(SmartRecommendation(
+                title: "🚨 URGENT: Kitchen Items Expired",
+                description: "\(expiredKitchenItems.count) kitchen items haven't been updated in 2+ weeks. Check for spoilage immediately!",
+                icon: "exclamationmark.octagon.fill",
+                color: .red,
+                priority: .high
+            ))
+        }
+        
+        // HIGH PRIORITY: Expired Other Items (60+ days)
+        let expiredOtherItems = staleOtherItems
+        if !expiredOtherItems.isEmpty {
+            recommendations.append(SmartRecommendation(
+                title: "⚠️ Stale Items Alert",
+                description: "\(expiredOtherItems.count) items haven't been updated in 2+ months. Time to review and update!",
+                icon: "clock.badge.exclamationmark.fill",
+                color: .orange,
+                priority: .high
+            ))
+        }
+        
+        // MEDIUM PRIORITY: Near Expiry Items
+        let nearExpiryItems = self.nearExpiryItems
+        if !nearExpiryItems.isEmpty {
+            recommendations.append(SmartRecommendation(
+                title: "Items Need Attention Soon",
+                description: "\(nearExpiryItems.count) items are approaching their update deadline. Check them this week.",
+                icon: "clock.arrow.circlepath",
+                color: .yellow,
+                priority: .medium
+            ))
+        }
+        
         // Critical stock recommendation
         let criticalItems = inventoryItems.filter { $0.quantity <= 0.1 }
         if !criticalItems.isEmpty {
@@ -584,18 +663,6 @@ class InventoryManager: ObservableObject {
                 icon: "exclamationmark.triangle.fill",
                 color: .red,
                 priority: .high
-            ))
-        }
-        
-        // Unused items recommendation
-        let oldItems = inventoryItems.filter { daysSinceLastUpdate($0) > 30 }
-        if !oldItems.isEmpty {
-            recommendations.append(SmartRecommendation(
-                title: "Unused Items Detected",
-                description: "\(oldItems.count) items haven't been updated in over 30 days. Consider reviewing them.",
-                icon: "clock.arrow.circlepath",
-                color: .orange,
-                priority: .medium
             ))
         }
         

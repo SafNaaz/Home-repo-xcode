@@ -9,6 +9,11 @@ struct InsightsView: View {
         NavigationView {
             ScrollView {
                 LazyVStack(spacing: 20) {
+                    // Urgent Alerts Section (if any)
+                    if !inventoryManager.urgentAttentionItems.isEmpty {
+                        UrgentItemsSection()
+                    }
+                    
                     // Overview Cards
                     OverviewCardsSection()
                     
@@ -366,6 +371,161 @@ struct RecommendationCard: View {
             RoundedRectangle(cornerRadius: 12)
                 .stroke(recommendation.priority == .high ? Color.red.opacity(0.3) : Color.clear, lineWidth: 1)
         )
+    }
+}
+
+// MARK: - Urgent Items Section
+struct UrgentItemsSection: View {
+    @EnvironmentObject var inventoryManager: InventoryManager
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("🚨 Urgent Attention Required")
+                .font(.title2)
+                .fontWeight(.bold)
+                .foregroundColor(.red)
+            
+            VStack(spacing: 12) {
+                // Critical Kitchen Items (14+ days)
+                if !inventoryManager.criticalKitchenItems.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Image(systemName: "exclamationmark.octagon.fill")
+                                .foregroundColor(.red)
+                                .font(.title2)
+                            
+                            Text("Kitchen Items Expired (2+ weeks)")
+                                .font(.headline)
+                                .fontWeight(.bold)
+                                .foregroundColor(.red)
+                        }
+                        
+                        ForEach(inventoryManager.criticalKitchenItems.prefix(5)) { item in
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(item.name)
+                                        .font(.subheadline)
+                                        .fontWeight(.semibold)
+                                    
+                                    Text("Last updated \(inventoryManager.daysSinceLastUpdate(item)) days ago")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                
+                                Spacer()
+                                
+                                Text("\(item.quantityPercentage)%")
+                                    .font(.caption)
+                                    .fontWeight(.bold)
+                                    .foregroundColor(item.needsRestocking ? .red : .primary)
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(Color.red.opacity(0.1))
+                            .cornerRadius(8)
+                        }
+                        
+                        if inventoryManager.criticalKitchenItems.count > 5 {
+                            Text("... and \(inventoryManager.criticalKitchenItems.count - 5) more items")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .padding(.horizontal, 12)
+                        }
+                    }
+                }
+                
+                // Stale Other Items (60+ days)
+                if !inventoryManager.staleOtherItems.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Image(systemName: "clock.badge.exclamationmark.fill")
+                                .foregroundColor(.orange)
+                                .font(.title2)
+                            
+                            Text("Stale Items (2+ months)")
+                                .font(.headline)
+                                .fontWeight(.bold)
+                                .foregroundColor(.orange)
+                        }
+                        
+                        ForEach(inventoryManager.staleOtherItems.prefix(5)) { item in
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(item.name)
+                                        .font(.subheadline)
+                                        .fontWeight(.semibold)
+                                    
+                                    Text("Last updated \(inventoryManager.daysSinceLastUpdate(item)) days ago • \(item.category.rawValue)")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                
+                                Spacer()
+                                
+                                Text("\(item.quantityPercentage)%")
+                                    .font(.caption)
+                                    .fontWeight(.bold)
+                                    .foregroundColor(item.needsRestocking ? .red : .primary)
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(Color.orange.opacity(0.1))
+                            .cornerRadius(8)
+                        }
+                        
+                        if inventoryManager.staleOtherItems.count > 5 {
+                            Text("... and \(inventoryManager.staleOtherItems.count - 5) more items")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .padding(.horizontal, 12)
+                        }
+                    }
+                }
+                
+                // Near Expiry Items
+                if !inventoryManager.nearExpiryItems.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Image(systemName: "clock.arrow.circlepath")
+                                .foregroundColor(.yellow)
+                                .font(.title2)
+                            
+                            Text("Items Approaching Deadline")
+                                .font(.headline)
+                                .fontWeight(.bold)
+                                .foregroundColor(.primary)
+                        }
+                        
+                        ForEach(inventoryManager.nearExpiryItems.prefix(3)) { item in
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(item.name)
+                                        .font(.subheadline)
+                                        .fontWeight(.semibold)
+                                    
+                                    let threshold = inventoryManager.getExpiryThreshold(for: item)
+                                    let daysLeft = threshold - inventoryManager.daysSinceLastUpdate(item)
+                                    Text("Update needed in \(daysLeft) days • \(item.category.rawValue)")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                
+                                Spacer()
+                                
+                                Text("\(item.quantityPercentage)%")
+                                    .font(.caption)
+                                    .fontWeight(.bold)
+                                    .foregroundColor(item.needsRestocking ? .red : .primary)
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(Color.yellow.opacity(0.1))
+                            .cornerRadius(8)
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 

@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct FridgeApp: App {
+struct HomeInventoryApp: App {
     let persistenceController = PersistenceController.shared
     @StateObject private var inventoryManager = InventoryManager()
     @StateObject private var settingsManager = SettingsManager()

@@ -297,6 +297,102 @@ enum ShoppingState {
     case shopping        // Shopping in progress, checklist unlocked
 }
 
+// MARK: - Note Model
+class Note: ObservableObject, Identifiable {
+    @Published var id = UUID()
+    @Published var title: String
+    @Published var content: String
+    @Published var createdDate: Date
+    @Published var lastModified: Date
+    
+    init(title: String = "", content: String = "") {
+        self.title = title
+        self.content = content
+        self.createdDate = Date()
+        self.lastModified = Date()
+    }
+    
+    func updateContent(title: String, content: String) {
+        self.title = title
+        self.content = content
+        self.lastModified = Date()
+    }
+}
+
+// MARK: - Notes Manager
+class NotesManager: ObservableObject {
+    @Published var notes: [Note] = []
+    
+    init() {
+        loadNotes()
+    }
+    
+    private func loadNotes() {
+        // For now, we'll use UserDefaults for simple storage
+        // In a production app, you'd use Core Data
+        if let data = UserDefaults.standard.data(forKey: "SavedNotes"),
+           let decodedNotes = try? JSONDecoder().decode([NoteData].self, from: data) {
+            notes = decodedNotes.map { noteData in
+                let note = Note(title: noteData.title, content: noteData.content)
+                note.id = noteData.id
+                note.createdDate = noteData.createdDate
+                note.lastModified = noteData.lastModified
+                return note
+            }
+        }
+    }
+    
+    private func saveNotes() {
+        let noteData = notes.map { note in
+            NoteData(
+                id: note.id,
+                title: note.title,
+                content: note.content,
+                createdDate: note.createdDate,
+                lastModified: note.lastModified
+            )
+        }
+        
+        if let encoded = try? JSONEncoder().encode(noteData) {
+            UserDefaults.standard.set(encoded, forKey: "SavedNotes")
+        }
+    }
+    
+    func addNote() {
+        // Limit to maximum 6 notes
+        if notes.count >= 6 {
+            return // Don't add if already at limit
+        }
+        
+        let newNote = Note(title: "New Note", content: "")
+        notes.insert(newNote, at: 0)
+        saveNotes()
+    }
+    
+    var canAddNote: Bool {
+        return notes.count < 6
+    }
+    
+    func deleteNote(_ note: Note) {
+        notes.removeAll { $0.id == note.id }
+        saveNotes()
+    }
+    
+    func updateNote(_ note: Note, title: String, content: String) {
+        note.updateContent(title: title, content: content)
+        saveNotes()
+    }
+}
+
+// MARK: - Note Data (for persistence)
+struct NoteData: Codable {
+    let id: UUID
+    let title: String
+    let content: String
+    let createdDate: Date
+    let lastModified: Date
+}
+
 // MARK: - Default Items Helper
 struct DefaultItemsHelper {
     static func createSampleItems() -> [InventoryItem] {

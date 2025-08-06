@@ -26,10 +26,10 @@ struct ContentView: View {
                         }
                         .tag(1)
                     
-                    SettingsView()
+                    NotesView()
                         .tabItem {
-                            Image(systemName: "gearshape.fill")
-                            Text("Settings")
+                            Image(systemName: "note.text")
+                            Text("Notes")
                         }
                         .tag(2)
                 }
@@ -133,7 +133,10 @@ struct InventoryView: View {
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    DarkModeToggle()
+                    HStack {
+                        SettingsButton()
+                        DarkModeToggle()
+                    }
                 }
             }
             .navigationDestination(for: InventoryCategory.self) { category in
@@ -456,6 +459,22 @@ struct AddItemView: View {
     }
 }
 
+struct SettingsButton: View {
+    @State private var showingSettings = false
+    
+    var body: some View {
+        Button(action: {
+            showingSettings = true
+        }) {
+            Image(systemName: "gearshape.fill")
+                .foregroundColor(.gray)
+        }
+        .sheet(isPresented: $showingSettings) {
+            SettingsView()
+        }
+    }
+}
+
 struct DarkModeToggle: View {
     @EnvironmentObject var settingsManager: SettingsManager
     
@@ -525,4 +544,5 @@ struct AuthenticationView: View {
     ContentView()
         .environmentObject(InventoryManager())
         .environmentObject(SettingsManager())
+        .environmentObject(NotesManager())
 }

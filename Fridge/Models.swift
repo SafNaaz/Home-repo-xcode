@@ -413,3 +413,16 @@ struct DefaultItemsHelper {
         return items
     }
 }
+
+// MARK: - Smart Recommendation Model
+struct SmartRecommendation {
+    let title: String
+    let description: String
+    let icon: String
+    let color: Color
+    let priority: RecommendationPriority
+}
+
+enum RecommendationPriority {
+    case low, medium, high
+}

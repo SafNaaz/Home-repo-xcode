@@ -487,4 +487,166 @@ class InventoryManager: ObservableObject {
     var allItems: [InventoryItem] {
         return inventoryItems
     }
+    
+    // MARK: - Analytics Properties
+    var activeCategoriesCount: Int {
+        let activeCategories = Set(inventoryItems.map { $0.category })
+        return activeCategories.count
+    }
+    
+    var mostFrequentlyRestockedItem: InventoryItem? {
+        return inventoryItems.max { item1, item2 in
+            item1.purchaseHistory.count < item2.purchaseHistory.count
+        }
+    }
+    
+    var leastUsedItem: InventoryItem? {
+        return inventoryItems.min { item1, item2 in
+            item1.lastUpdated < item2.lastUpdated
+        }
+    }
+    
+    func daysSinceLastUpdate(_ item: InventoryItem) -> Int {
+        let calendar = Calendar.current
+        let now = Date()
+        let components = calendar.dateComponents([.day], from: item.lastUpdated, to: now)
+        return components.day ?? 0
+    }
+    
+    var estimatedShoppingFrequency: String {
+        let totalPurchases = inventoryItems.reduce(0) { $0 + $1.purchaseHistory.count }
+        guard totalPurchases > 0 else { return "No data yet" }
+        
+        // Calculate average days between purchases
+        let totalDays = inventoryItems.compactMap { item in
+            guard item.purchaseHistory.count > 1 else { return nil }
+            let sortedHistory = item.purchaseHistory.sorted()
+            var totalDaysBetween = 0
+            for i in 1..<sortedHistory.count {
+                let days = Calendar.current.dateComponents([.day], from: sortedHistory[i-1], to: sortedHistory[i]).day ?? 0
+                totalDaysBetween += days
+            }
+            return totalDaysBetween / (sortedHistory.count - 1)
+        }.reduce(0, +)
+        
+        if totalDays == 0 {
+            return "Weekly"
+        }
+        
+        let avgDays = totalDays / inventoryItems.filter { $0.purchaseHistory.count > 1 }.count
+        
+        if avgDays <= 7 {
+            return "Weekly"
+        } else if avgDays <= 14 {
+            return "Bi-weekly"
+        } else if avgDays <= 30 {
+            return "Monthly"
+        } else {
+            return "Rarely"
+        }
+    }
+    
+    var estimatedNextShoppingTrip: String {
+        let lowStockItems = inventoryItems.filter { $0.needsRestocking }
+        let criticalItems = inventoryItems.filter { $0.quantity <= 0.1 }
+        
+        if criticalItems.count > 0 {
+            return "Now (critical items)"
+        } else if lowStockItems.count >= 5 {
+            return "This week"
+        } else if lowStockItems.count > 0 {
+            return "Next week"
+        } else {
+            return "No rush"
+        }
+    }
+    
+    var shoppingEfficiencyTip: String {
+        let categoryGroups = Dictionary(grouping: inventoryItems.filter { $0.needsRestocking }) { $0.category }
+        let maxCategory = categoryGroups.max { $0.value.count < $1.value.count }
+        
+        if let category = maxCategory?.key, maxCategory?.value.count ?? 0 > 1 {
+            return "Focus on \(category.rawValue) section"
+        } else {
+            return "Spread across categories"
+        }
+    }
+    
+    func getSmartRecommendations() -> [SmartRecommendation] {
+        var recommendations: [SmartRecommendation] = []
+        
+        // Critical stock recommendation
+        let criticalItems = inventoryItems.filter { $0.quantity <= 0.1 }
+        if !criticalItems.isEmpty {
+            recommendations.append(SmartRecommendation(
+                title: "Critical Stock Alert",
+                description: "\(criticalItems.count) items are critically low (≤10%). Consider shopping soon.",
+                icon: "exclamationmark.triangle.fill",
+                color: .red,
+                priority: .high
+            ))
+        }
+        
+        // Unused items recommendation
+        let oldItems = inventoryItems.filter { daysSinceLastUpdate($0) > 30 }
+        if !oldItems.isEmpty {
+            recommendations.append(SmartRecommendation(
+                title: "Unused Items Detected",
+                description: "\(oldItems.count) items haven't been updated in over 30 days. Consider reviewing them.",
+                icon: "clock.arrow.circlepath",
+                color: .orange,
+                priority: .medium
+            ))
+        }
+        
+        // Category balance recommendation
+        let categoryDistribution = Dictionary(grouping: inventoryItems) { $0.category }
+        let imbalancedCategories = categoryDistribution.filter { $0.value.count < 2 }
+        if imbalancedCategories.count > 0 {
+            recommendations.append(SmartRecommendation(
+                title: "Expand Your Inventory",
+                description: "Some categories have very few items. Consider adding more items for better tracking.",
+                icon: "plus.circle.fill",
+                color: .blue,
+                priority: .low
+            ))
+        }
+        
+        // Shopping efficiency recommendation
+        let lowStockByCategory = Dictionary(grouping: inventoryItems.filter { $0.needsRestocking }) { $0.category }
+        if lowStockByCategory.count > 2 {
+            recommendations.append(SmartRecommendation(
+                title: "Optimize Shopping Route",
+                description: "You have low stock items across \(lowStockByCategory.count) categories. Plan your store route efficiently.",
+                icon: "map.fill",
+                color: .green,
+                priority: .medium
+            ))
+        }
+        
+        // Frequent restocking recommendation
+        let frequentItems = inventoryItems.filter { $0.purchaseHistory.count > 5 }
+        if !frequentItems.isEmpty {
+            recommendations.append(SmartRecommendation(
+                title: "Consider Bulk Buying",
+                description: "\(frequentItems.count) items are restocked frequently. Consider buying in bulk to save trips.",
+                icon: "cart.fill.badge.plus",
+                color: .purple,
+                priority: .low
+            ))
+        }
+        
+        // Default recommendation if no specific insights
+        if recommendations.isEmpty {
+            recommendations.append(SmartRecommendation(
+                title: "Great Job!",
+                description: "Your inventory is well-maintained. Keep tracking your items for better insights.",
+                icon: "checkmark.seal.fill",
+                color: .green,
+                priority: .low
+            ))
+        }
+        
+        return recommendations.sorted { $0.priority == .high && $1.priority != .high }
+    }
 }

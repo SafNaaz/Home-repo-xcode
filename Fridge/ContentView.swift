@@ -26,12 +26,19 @@ struct ContentView: View {
                         }
                         .tag(1)
                     
+                    InsightsView()
+                        .tabItem {
+                            Image(systemName: "chart.bar.fill")
+                            Text("Insights")
+                        }
+                        .tag(2)
+                    
                     NotesView()
                         .tabItem {
                             Image(systemName: "note.text")
                             Text("Notes")
                         }
-                        .tag(2)
+                        .tag(3)
                 }
                 .accentColor(.blue)
             }

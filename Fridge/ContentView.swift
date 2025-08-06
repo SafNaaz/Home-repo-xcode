@@ -134,6 +134,7 @@ struct InventoryView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     HStack {
+                        ReminderButton()
                         SettingsButton()
                         DarkModeToggle()
                     }
@@ -543,6 +544,147 @@ struct AddItemView: View {
             if let currentFocus = focusedField, currentFocus >= newItemNames.count {
                 focusedField = max(0, newItemNames.count - 1)
             }
+        }
+    }
+}
+
+struct NotificationsView: View {
+    @EnvironmentObject var settingsManager: SettingsManager
+    @Environment(\.presentationMode) var presentationMode
+    
+    var body: some View {
+        NavigationView {
+            List {
+                // Notifications Section
+                Section("Inventory Reminders") {
+                    HStack {
+                        Image(systemName: settingsManager.isInventoryReminderEnabled ? "bell.fill" : "bell.slash.fill")
+                            .foregroundColor(settingsManager.isInventoryReminderEnabled ? .blue : .gray)
+                            .frame(width: 25)
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Enable Reminders")
+                            Text("Get reminded to update your inventory")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        Spacer()
+                        
+                        Toggle("", isOn: Binding(
+                            get: { settingsManager.isInventoryReminderEnabled },
+                            set: { _ in settingsManager.toggleInventoryReminder() }
+                        ))
+                    }
+                    .padding(.vertical, 4)
+                    
+                    if settingsManager.isInventoryReminderEnabled {
+                        // First reminder time
+                        HStack {
+                            Image(systemName: "clock.fill")
+                                .foregroundColor(.orange)
+                                .frame(width: 25)
+                            
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("First Reminder")
+                                Text("Daily reminder time")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            
+                            Spacer()
+                            
+                            DatePicker("", selection: Binding(
+                                get: { settingsManager.reminderTime1 },
+                                set: { newTime in
+                                    settingsManager.reminderTime1 = newTime
+                                    settingsManager.updateReminderTimes()
+                                }
+                            ), displayedComponents: .hourAndMinute)
+                            .labelsHidden()
+                        }
+                        .padding(.vertical, 4)
+                        
+                        // Second reminder toggle
+                        HStack {
+                            Image(systemName: settingsManager.isSecondReminderEnabled ? "bell.fill" : "bell.slash.fill")
+                                .foregroundColor(settingsManager.isSecondReminderEnabled ? .purple : .gray)
+                                .frame(width: 25)
+                            
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Second Reminder")
+                                Text("Enable a second daily reminder")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            
+                            Spacer()
+                            
+                            Toggle("", isOn: Binding(
+                                get: { settingsManager.isSecondReminderEnabled },
+                                set: { _ in
+                                    settingsManager.isSecondReminderEnabled.toggle()
+                                    settingsManager.updateReminderTimes()
+                                    settingsManager.saveSettings()
+                                }
+                            ))
+                        }
+                        .padding(.vertical, 4)
+                        
+                        // Second reminder time (only if enabled)
+                        if settingsManager.isSecondReminderEnabled {
+                            HStack {
+                                Image(systemName: "clock.fill")
+                                    .foregroundColor(.purple)
+                                    .frame(width: 25)
+                                
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Second Reminder Time")
+                                    Text("Daily reminder time")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                
+                                Spacer()
+                                
+                                DatePicker("", selection: Binding(
+                                    get: { settingsManager.reminderTime2 },
+                                    set: { newTime in
+                                        settingsManager.reminderTime2 = newTime
+                                        settingsManager.updateReminderTimes()
+                                    }
+                                ), displayedComponents: .hourAndMinute)
+                                .labelsHidden()
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Notifications")
+            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarItems(
+                trailing: Button("Done") {
+                    presentationMode.wrappedValue.dismiss()
+                }
+            )
+        }
+    }
+}
+
+struct ReminderButton: View {
+    @EnvironmentObject var settingsManager: SettingsManager
+    @State private var showingNotifications = false
+    
+    var body: some View {
+        Button(action: {
+            showingNotifications = true
+        }) {
+            Image(systemName: settingsManager.isInventoryReminderEnabled ? "bell.fill" : "bell")
+                .foregroundColor(settingsManager.isInventoryReminderEnabled ? .blue : .gray)
+        }
+        .sheet(isPresented: $showingNotifications) {
+            NotificationsView()
         }
     }
 }

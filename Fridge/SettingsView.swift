@@ -50,6 +50,84 @@ struct SettingsView: View {
                     .padding(.vertical, 4)
                 }
                 
+                // Notifications Section
+                Section("Notifications") {
+                    HStack {
+                        Image(systemName: settingsManager.isInventoryReminderEnabled ? "bell.fill" : "bell.slash.fill")
+                            .foregroundColor(settingsManager.isInventoryReminderEnabled ? .blue : .gray)
+                            .frame(width: 25)
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Inventory Reminders")
+                            Text("Get reminded to update your inventory")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        Spacer()
+                        
+                        Toggle("", isOn: Binding(
+                            get: { settingsManager.isInventoryReminderEnabled },
+                            set: { _ in settingsManager.toggleInventoryReminder() }
+                        ))
+                    }
+                    .padding(.vertical, 4)
+                    
+                    if settingsManager.isInventoryReminderEnabled {
+                        // First reminder time
+                        HStack {
+                            Image(systemName: "clock.fill")
+                                .foregroundColor(.orange)
+                                .frame(width: 25)
+                            
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("First Reminder")
+                                Text("Daily reminder time")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            
+                            Spacer()
+                            
+                            DatePicker("", selection: Binding(
+                                get: { settingsManager.reminderTime1 },
+                                set: { newTime in
+                                    settingsManager.reminderTime1 = newTime
+                                    settingsManager.updateReminderTimes()
+                                }
+                            ), displayedComponents: .hourAndMinute)
+                            .labelsHidden()
+                        }
+                        .padding(.vertical, 4)
+                        
+                        // Second reminder time
+                        HStack {
+                            Image(systemName: "clock.fill")
+                                .foregroundColor(.purple)
+                                .frame(width: 25)
+                            
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Second Reminder")
+                                Text("Daily reminder time")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            
+                            Spacer()
+                            
+                            DatePicker("", selection: Binding(
+                                get: { settingsManager.reminderTime2 },
+                                set: { newTime in
+                                    settingsManager.reminderTime2 = newTime
+                                    settingsManager.updateReminderTimes()
+                                }
+                            ), displayedComponents: .hourAndMinute)
+                            .labelsHidden()
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
+                
                 // Data Management Section
                 Section("Data Management") {
                     Button(action: {

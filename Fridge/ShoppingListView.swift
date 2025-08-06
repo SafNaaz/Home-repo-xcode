@@ -78,81 +78,81 @@ struct GeneratingShoppingView: View {
     @EnvironmentObject var inventoryManager: InventoryManager
     @State private var showingAddMiscItem = false
     @State private var miscItemName = ""
+    @State private var showingItemsInfo = false
     
     var body: some View {
-        ZStack(alignment: .top) {
-            // Background that extends to top
-            Color(.systemGray6)
-                .ignoresSafeArea(.all, edges: .top)
-                .frame(height: 200) // Adjust height as needed
-            
-            VStack(spacing: 0) {
-                // Header content with proper spacing
-                VStack(spacing: 12) {
+        VStack(spacing: 0) {
+            // Compact Header
+            VStack(spacing: 8) {
+                HStack {
                     Text("Review Your Shopping List")
-                        .font(.title2)
-                        .fontWeight(.bold)
+                        .font(.headline)
+                        .fontWeight(.semibold)
                     
-                    Text("Items needing attention are listed below. Remove items you don't need or add misc items.")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
+                    Button(action: {
+                        showingItemsInfo = true
+                    }) {
+                        Image(systemName: "info.circle")
+                            .foregroundColor(.blue)
+                    }
+                    
+                    Spacer()
                 }
-                .padding()
-                .padding(.top, 10) // Minimal top padding
-                
-                // Shopping List Items with Category Sections
-                List {
-                    if !inventoryManager.shoppingList.items.isEmpty {
-                        ForEach(InventoryCategory.allCases) { category in
-                            let categoryItems = inventoryManager.shoppingList.items.filter { item in
-                                item.category == category || (item.isTemporary && category == .grocery)
-                            }
-                            
-                            if !categoryItems.isEmpty {
-                                Section(header: CategorySectionHeader(category: category)) {
-                                    ForEach(categoryItems) { item in
-                                        GeneratingItemRow(item: item)
-                                    }
+                .padding(.horizontal)
+                .padding(.top, 8)
+            }
+            
+            // Shopping List Items with Category Sections
+            List {
+                if !inventoryManager.shoppingList.items.isEmpty {
+                    ForEach(InventoryCategory.allCases) { category in
+                        let categoryItems = inventoryManager.shoppingList.items.filter { item in
+                            item.category == category || (item.isTemporary && category == .grocery)
+                        }
+                        
+                        if !categoryItems.isEmpty {
+                            Section(header: CategorySectionHeader(category: category)) {
+                                ForEach(categoryItems) { item in
+                                    GeneratingItemRow(item: item)
                                 }
                             }
                         }
                     }
                 }
-                
-                // Action Buttons
-                VStack(spacing: 12) {
-                    Button(action: {
-                        showingAddMiscItem = true
-                    }) {
-                        HStack {
-                            Image(systemName: "plus.circle")
-                            Text("Add Misc Item")
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color(.systemGray5))
-                        .foregroundColor(.primary)
-                        .cornerRadius(10)
-                    }
-                    
-                    Button(action: {
-                        inventoryManager.finalizeShoppingList()
-                    }) {
-                        HStack {
-                            Image(systemName: "arrow.right.circle.fill")
-                            Text("Next - Create Checklist")
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.green)
-                        .foregroundColor(.white)
-                        .cornerRadius(10)
-                    }
-                    .disabled(inventoryManager.shoppingList.items.isEmpty)
-                }
-                .padding()
             }
+            
+            // Action Buttons - Side by Side
+            HStack(spacing: 12) {
+                Button(action: {
+                    showingAddMiscItem = true
+                }) {
+                    HStack {
+                        Image(systemName: "plus.circle")
+                        Text("Add Misc")
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color(.systemGray5))
+                    .foregroundColor(.primary)
+                    .cornerRadius(10)
+                }
+                
+                Button(action: {
+                    inventoryManager.finalizeShoppingList()
+                }) {
+                    HStack {
+                        Image(systemName: "arrow.right.circle.fill")
+                        Text("Continue")
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.green)
+                    .foregroundColor(.white)
+                    .cornerRadius(10)
+                }
+                .disabled(inventoryManager.shoppingList.items.isEmpty)
+            }
+            .padding()
         }
         .navigationBarItems(leading: Button("Cancel") {
             inventoryManager.cancelShopping()
@@ -167,6 +167,11 @@ struct GeneratingShoppingView: View {
                 showingAddMiscItem = false
             }
         }
+        .alert("Items Needing Attention", isPresented: $showingItemsInfo) {
+            Button("OK") { }
+        } message: {
+            Text("Items with 25% or less stock are automatically added to your shopping list. You can remove items you don't need or add additional misc items.")
+        }
     }
 }
 
@@ -175,69 +180,61 @@ struct ReadyShoppingView: View {
     @EnvironmentObject var inventoryManager: InventoryManager
     
     var body: some View {
-        ZStack(alignment: .top) {
-            // Background that extends to top
-            Color(.systemGray6)
-                .ignoresSafeArea(.all, edges: .top)
-                .frame(height: 200) // Adjust height as needed
+        VStack(spacing: 0) {
+            // Compact Header
+            VStack(spacing: 8) {
+                Text("Shopping Checklist Ready")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                    .padding(.horizontal)
+                    .padding(.top, 8)
+            }
             
-            VStack(spacing: 0) {
-                // Header content with proper spacing
-                VStack(spacing: 12) {
-                    Text("Shopping Checklist Ready")
-                        .font(.title2)
-                        .fontWeight(.bold)
+            // Read-only Checklist with Category Sections
+            List {
+                ForEach(InventoryCategory.allCases) { category in
+                    let categoryItems = inventoryManager.shoppingList.items.filter { item in
+                        item.category == category || (item.isTemporary && category == .grocery)
+                    }
                     
-                    Text("Your shopping list is ready. Start shopping to unlock the checklist.")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                }
-                .padding()
-                .padding(.top, 10) // Minimal top padding
-                
-                // Read-only Checklist with Category Sections
-                List {
-                    ForEach(InventoryCategory.allCases) { category in
-                        let categoryItems = inventoryManager.shoppingList.items.filter { item in
-                            item.category == category || (item.isTemporary && category == .grocery)
-                        }
-                        
-                        if !categoryItems.isEmpty {
-                            Section(header: CategorySectionHeader(category: category)) {
-                                ForEach(categoryItems) { item in
-                                    ReadOnlyItemRow(item: item)
-                                }
+                    if !categoryItems.isEmpty {
+                        Section(header: CategorySectionHeader(category: category)) {
+                            ForEach(categoryItems) { item in
+                                ReadOnlyItemRow(item: item)
                             }
                         }
                     }
                 }
-                
-                // Action Buttons
-                VStack(spacing: 12) {
-                    Button(action: {
-                        inventoryManager.startShopping()
-                    }) {
-                        HStack {
-                            Image(systemName: "cart.fill")
-                            Text("Start Shopping")
-                        }
+            }
+            
+            // Action Buttons - Side by Side
+            HStack(spacing: 12) {
+                Button(action: {
+                    inventoryManager.cancelShopping()
+                }) {
+                    Text("Cancel")
                         .frame(maxWidth: .infinity)
                         .padding()
-                        .background(Color.blue)
-                        .foregroundColor(.white)
+                        .background(Color(.systemGray5))
+                        .foregroundColor(.primary)
                         .cornerRadius(10)
-                    }
-                    
-                    Button(action: {
-                        inventoryManager.cancelShopping()
-                    }) {
-                        Text("Cancel Shopping")
-                            .foregroundColor(.red)
-                    }
                 }
-                .padding()
+                
+                Button(action: {
+                    inventoryManager.startShopping()
+                }) {
+                    HStack {
+                        Image(systemName: "cart.fill")
+                        Text("Start Shopping")
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.blue)
+                    .foregroundColor(.white)
+                    .cornerRadius(10)
+                }
             }
+            .padding()
         }
     }
 }
@@ -249,105 +246,69 @@ struct ActiveShoppingView: View {
     @State private var refreshTrigger = UUID()
     
     var body: some View {
-        ZStack(alignment: .top) {
-            // Background that extends to top
-            Color(.systemGray6)
-                .ignoresSafeArea(.all, edges: .top)
-                .frame(height: 200) // Adjust height as needed
-            
-            VStack(spacing: 0) {
-                // Header content with proper spacing
-                VStack(spacing: 12) {
+        VStack(spacing: 0) {
+            // Compact Header with Progress
+            VStack(spacing: 8) {
+                HStack {
                     Text("Shopping in Progress")
-                        .font(.title2)
-                        .fontWeight(.bold)
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                    
+                    Spacer()
                     
                     // Progress indicator
                     let checkedCount = inventoryManager.shoppingList.checkedItems.count
                     let totalCount = inventoryManager.shoppingList.items.count
                     
-                    HStack(spacing: 8) {
+                    HStack(spacing: 4) {
                         Image(systemName: "checkmark.circle.fill")
                             .foregroundColor(.green)
-                        Text("Checked \(checkedCount)/\(totalCount)")
-                            .font(.headline)
+                            .font(.caption)
+                        Text("\(checkedCount)/\(totalCount)")
+                            .font(.caption)
                             .fontWeight(.semibold)
                     }
-                    
-                    Text("Check off items as you shop. Complete when done.")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
                 }
-                .padding()
-                .padding(.top, 10) // Minimal top padding
-                .id(refreshTrigger)
-                .onReceive(inventoryManager.shoppingList.objectWillChange) { _ in
-                    refreshTrigger = UUID()
-                }
-                
-                // Active Checklist with Category Sections
-                List {
-                    ForEach(InventoryCategory.allCases) { category in
-                        let categoryItems = inventoryManager.shoppingList.items.filter { item in
-                            item.category == category || (item.isTemporary && category == .grocery)
-                        }
-                        
-                        if !categoryItems.isEmpty {
-                            Section(header: CategorySectionHeader(category: category)) {
-                                ForEach(categoryItems) { item in
-                                    ActiveItemRow(item: item)
-                                }
-                            }
-                        }
-                    }
-                }
-                
-                // Completion Button
-                VStack(spacing: 12) {
-                    let checkedCount = inventoryManager.shoppingList.checkedItems.count
-                    
-                    Button(action: {
-                        showingCompleteAlert = true
-                    }) {
-                        HStack {
-                            Image(systemName: "checkmark.circle.fill")
-                            Text("Complete Shopping")
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.green)
-                        .foregroundColor(.white)
-                        .cornerRadius(10)
-                    }
-                    
-                    let restorableCount = inventoryManager.shoppingList.checkedItems.filter { !$0.isTemporary }.count
-                    if restorableCount > 0 {
-                        Text("\(restorableCount) items will be restored to 100%")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    } else if checkedCount > 0 {
-                        Text("Misc items checked - no inventory restoration")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    } else {
-                        VStack(spacing: 8) {
-                            HStack {
-                                Image(systemName: "info.circle")
-                                    .foregroundColor(.blue)
-                                Text("Tap items to check them off as you shop")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                            Text("Checked items will be automatically restocked to 100%")
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
-                                .multilineTextAlignment(.center)
-                        }
-                    }
-                }
-                .padding()
+                .padding(.horizontal)
+                .padding(.top, 8)
             }
+            .id(refreshTrigger)
+            .onReceive(inventoryManager.shoppingList.objectWillChange) { _ in
+                refreshTrigger = UUID()
+            }
+            
+            // Active Checklist with Category Sections
+            List {
+                ForEach(InventoryCategory.allCases) { category in
+                    let categoryItems = inventoryManager.shoppingList.items.filter { item in
+                        item.category == category || (item.isTemporary && category == .grocery)
+                    }
+                    
+                    if !categoryItems.isEmpty {
+                        Section(header: CategorySectionHeader(category: category)) {
+                            ForEach(categoryItems) { item in
+                                SimpleActiveItemRow(item: item)
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Completion Button
+            Button(action: {
+                showingCompleteAlert = true
+            }) {
+                HStack {
+                    Image(systemName: "checkmark.circle.fill")
+                    Text("Complete Shopping")
+                }
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(Color.green)
+                .foregroundColor(.white)
+                .cornerRadius(10)
+            }
+            .padding()
         }
         .alert("Complete Shopping Trip", isPresented: $showingCompleteAlert) {
             Button("Cancel", role: .cancel) { }
@@ -579,6 +540,47 @@ struct AddMiscItemView: View {
                 .disabled(itemName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             )
         }
+    }
+}
+
+// MARK: - Simplified Active Item Row (for final checklist)
+struct SimpleActiveItemRow: View {
+    @ObservedObject var item: ShoppingListItem
+    @EnvironmentObject var inventoryManager: InventoryManager
+    
+    var body: some View {
+        HStack {
+            Button(action: {
+                // Update Core Data
+                let entities = PersistenceController.shared.fetchShoppingItems()
+                
+                if let entity = entities.first(where: { $0.id == item.id }) {
+                    PersistenceController.shared.toggleShoppingItem(entity)
+                } else {
+                    // Try to find by name as fallback
+                    if let entity = entities.first(where: { $0.name == item.name }) {
+                        item.id = entity.id ?? item.id
+                        PersistenceController.shared.toggleShoppingItem(entity)
+                    }
+                }
+                
+                // Update local item
+                inventoryManager.shoppingList.toggleItem(item)
+            }) {
+                Image(systemName: item.isChecked ? "checkmark.circle.fill" : "circle")
+                    .foregroundColor(item.isChecked ? .green : .gray)
+                    .font(.title2)
+            }
+            .buttonStyle(PlainButtonStyle())
+            
+            Text(item.name)
+                .font(.body)
+                .strikethrough(item.isChecked)
+                .foregroundColor(item.isChecked ? .secondary : .primary)
+            
+            Spacer()
+        }
+        .padding(.vertical, 8)
     }
 }
 

@@ -82,9 +82,11 @@ struct GeneratingShoppingView: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            // Compact Header
+            // Compact Header - Centered
             VStack(spacing: 8) {
                 HStack {
+                    Spacer()
+                    
                     Text("Review Your Shopping List")
                         .font(.headline)
                         .fontWeight(.semibold)
@@ -181,11 +183,12 @@ struct ReadyShoppingView: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            // Compact Header
+            // Compact Header - Centered
             VStack(spacing: 8) {
                 Text("Shopping Checklist Ready")
                     .font(.headline)
                     .fontWeight(.semibold)
+                    .frame(maxWidth: .infinity)
                     .padding(.horizontal)
                     .padding(.top, 8)
             }
@@ -247,15 +250,9 @@ struct ActiveShoppingView: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            // Compact Header with Progress
+            // Compact Header with Progress - Centered
             VStack(spacing: 8) {
                 HStack {
-                    Text("Shopping in Progress")
-                        .font(.headline)
-                        .fontWeight(.semibold)
-                    
-                    Spacer()
-                    
                     // Progress indicator
                     let checkedCount = inventoryManager.shoppingList.checkedItems.count
                     let totalCount = inventoryManager.shoppingList.items.count
@@ -267,6 +264,24 @@ struct ActiveShoppingView: View {
                         Text("\(checkedCount)/\(totalCount)")
                             .font(.caption)
                             .fontWeight(.semibold)
+                    }
+                    
+                    Spacer()
+                    
+                    Text("Shopping in Progress")
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                    
+                    Spacer()
+                    
+                    // Invisible spacer to balance the layout
+                    HStack(spacing: 4) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(.clear)
+                            .font(.caption)
+                        Text("0/0")
+                            .font(.caption)
+                            .foregroundColor(.clear)
                     }
                 }
                 .padding(.horizontal)
@@ -385,7 +400,7 @@ struct GeneratingItemRow: View {
                     .font(.title2)
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 2)
     }
 }
 
@@ -418,7 +433,7 @@ struct ReadOnlyItemRow: View {
             
             Spacer()
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 2)
     }
 }
 
@@ -491,7 +506,7 @@ struct ActiveItemRow: View {
             
             Spacer()
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 2)
     }
 }
 
@@ -580,7 +595,7 @@ struct SimpleActiveItemRow: View {
             
             Spacer()
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, 4)
     }
 }
 

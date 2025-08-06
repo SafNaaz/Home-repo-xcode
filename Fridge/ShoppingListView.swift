@@ -1,12 +1,12 @@
 import SwiftUI
 
 struct ShoppingListView: View {
-    @EnvironmentObject var fridgeManager: FridgeManager
+    @EnvironmentObject var inventoryManager: InventoryManager
     
     var body: some View {
         NavigationView {
             VStack {
-                switch fridgeManager.shoppingState {
+                switch inventoryManager.shoppingState {
                 case .empty:
                     EmptyShoppingView()
                 case .generating:
@@ -24,7 +24,7 @@ struct ShoppingListView: View {
 
 // MARK: - Empty State
 struct EmptyShoppingView: View {
-    @EnvironmentObject var fridgeManager: FridgeManager
+    @EnvironmentObject var inventoryManager: InventoryManager
     
     var body: some View {
         VStack(spacing: 30) {
@@ -36,7 +36,7 @@ struct EmptyShoppingView: View {
                 .font(.title)
                 .fontWeight(.bold)
             
-            Text("Generate a shopping list based on items that need attention in your fridge.")
+            Text("Generate a shopping list based on items that need attention in your household inventory.")
                 .font(.body)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
@@ -44,7 +44,7 @@ struct EmptyShoppingView: View {
             
             VStack(spacing: 16) {
                 Button(action: {
-                    fridgeManager.startGeneratingShoppingList()
+                    inventoryManager.startGeneratingShoppingList()
                 }) {
                     HStack {
                         Image(systemName: "wand.and.rays")
@@ -57,11 +57,11 @@ struct EmptyShoppingView: View {
                     .cornerRadius(12)
                 }
                 
-                if fridgeManager.lowStockItemsCount > 0 {
+                if inventoryManager.lowStockItemsCount > 0 {
                     HStack {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .foregroundColor(.orange)
-                        Text("\(fridgeManager.lowStockItemsCount) items need attention")
+                        Text("\(inventoryManager.lowStockItemsCount) items need attention")
                             .font(.subheadline)
                             .foregroundColor(.orange)
                     }
@@ -75,7 +75,7 @@ struct EmptyShoppingView: View {
 
 // MARK: - Generating State
 struct GeneratingShoppingView: View {
-    @EnvironmentObject var fridgeManager: FridgeManager
+    @EnvironmentObject var inventoryManager: InventoryManager
     @State private var showingAddMiscItem = false
     @State private var miscItemName = ""
     
@@ -101,12 +101,20 @@ struct GeneratingShoppingView: View {
                 .padding()
                 .padding(.top, 10) // Minimal top padding
                 
-                // Shopping List Items
+                // Shopping List Items with Category Sections
                 List {
-                    if !fridgeManager.shoppingList.items.isEmpty {
-                        Section("Items to Buy") {
-                            ForEach(fridgeManager.shoppingList.items) { item in
-                                GeneratingItemRow(item: item)
+                    if !inventoryManager.shoppingList.items.isEmpty {
+                        ForEach(InventoryCategory.allCases) { category in
+                            let categoryItems = inventoryManager.shoppingList.items.filter { item in
+                                item.category == category || (item.isTemporary && category == .grocery)
+                            }
+                            
+                            if !categoryItems.isEmpty {
+                                Section(header: CategorySectionHeader(category: category)) {
+                                    ForEach(categoryItems) { item in
+                                        GeneratingItemRow(item: item)
+                                    }
+                                }
                             }
                         }
                     }
@@ -129,7 +137,7 @@ struct GeneratingShoppingView: View {
                     }
                     
                     Button(action: {
-                        fridgeManager.finalizeShoppingList()
+                        inventoryManager.finalizeShoppingList()
                     }) {
                         HStack {
                             Image(systemName: "arrow.right.circle.fill")
@@ -141,19 +149,19 @@ struct GeneratingShoppingView: View {
                         .foregroundColor(.white)
                         .cornerRadius(10)
                     }
-                    .disabled(fridgeManager.shoppingList.items.isEmpty)
+                    .disabled(inventoryManager.shoppingList.items.isEmpty)
                 }
                 .padding()
             }
         }
         .navigationBarItems(leading: Button("Cancel") {
-            fridgeManager.cancelShopping()
+            inventoryManager.cancelShopping()
         }
         .foregroundColor(.red))
         .sheet(isPresented: $showingAddMiscItem) {
             AddMiscItemView(itemName: $miscItemName) {
                 if !miscItemName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    fridgeManager.addTemporaryItemToShoppingList(name: miscItemName.trimmingCharacters(in: .whitespacesAndNewlines))
+                    inventoryManager.addTemporaryItemToShoppingList(name: miscItemName.trimmingCharacters(in: .whitespacesAndNewlines))
                     miscItemName = ""
                 }
                 showingAddMiscItem = false
@@ -164,7 +172,7 @@ struct GeneratingShoppingView: View {
 
 // MARK: - Ready State (Non-editable Checklist)
 struct ReadyShoppingView: View {
-    @EnvironmentObject var fridgeManager: FridgeManager
+    @EnvironmentObject var inventoryManager: InventoryManager
     
     var body: some View {
         ZStack(alignment: .top) {
@@ -188,11 +196,19 @@ struct ReadyShoppingView: View {
                 .padding()
                 .padding(.top, 10) // Minimal top padding
                 
-                // Read-only Checklist
+                // Read-only Checklist with Category Sections
                 List {
-                    Section("Shopping List (\(fridgeManager.shoppingList.items.count) items)") {
-                        ForEach(fridgeManager.shoppingList.items) { item in
-                            ReadOnlyItemRow(item: item)
+                    ForEach(InventoryCategory.allCases) { category in
+                        let categoryItems = inventoryManager.shoppingList.items.filter { item in
+                            item.category == category || (item.isTemporary && category == .grocery)
+                        }
+                        
+                        if !categoryItems.isEmpty {
+                            Section(header: CategorySectionHeader(category: category)) {
+                                ForEach(categoryItems) { item in
+                                    ReadOnlyItemRow(item: item)
+                                }
+                            }
                         }
                     }
                 }
@@ -200,7 +216,7 @@ struct ReadyShoppingView: View {
                 // Action Buttons
                 VStack(spacing: 12) {
                     Button(action: {
-                        fridgeManager.startShopping()
+                        inventoryManager.startShopping()
                     }) {
                         HStack {
                             Image(systemName: "cart.fill")
@@ -214,7 +230,7 @@ struct ReadyShoppingView: View {
                     }
                     
                     Button(action: {
-                        fridgeManager.cancelShopping()
+                        inventoryManager.cancelShopping()
                     }) {
                         Text("Cancel Shopping")
                             .foregroundColor(.red)
@@ -228,7 +244,7 @@ struct ReadyShoppingView: View {
 
 // MARK: - Active Shopping State
 struct ActiveShoppingView: View {
-    @EnvironmentObject var fridgeManager: FridgeManager
+    @EnvironmentObject var inventoryManager: InventoryManager
     @State private var showingCompleteAlert = false
     @State private var refreshTrigger = UUID()
     
@@ -247,8 +263,8 @@ struct ActiveShoppingView: View {
                         .fontWeight(.bold)
                     
                     // Progress indicator
-                    let checkedCount = fridgeManager.shoppingList.checkedItems.count
-                    let totalCount = fridgeManager.shoppingList.items.count
+                    let checkedCount = inventoryManager.shoppingList.checkedItems.count
+                    let totalCount = inventoryManager.shoppingList.items.count
                     
                     HStack(spacing: 8) {
                         Image(systemName: "checkmark.circle.fill")
@@ -266,22 +282,30 @@ struct ActiveShoppingView: View {
                 .padding()
                 .padding(.top, 10) // Minimal top padding
                 .id(refreshTrigger)
-                .onReceive(fridgeManager.shoppingList.objectWillChange) { _ in
+                .onReceive(inventoryManager.shoppingList.objectWillChange) { _ in
                     refreshTrigger = UUID()
                 }
                 
-                // Active Checklist
+                // Active Checklist with Category Sections
                 List {
-                    Section("Shopping Checklist") {
-                        ForEach(fridgeManager.shoppingList.items) { item in
-                            ActiveItemRow(item: item)
+                    ForEach(InventoryCategory.allCases) { category in
+                        let categoryItems = inventoryManager.shoppingList.items.filter { item in
+                            item.category == category || (item.isTemporary && category == .grocery)
+                        }
+                        
+                        if !categoryItems.isEmpty {
+                            Section(header: CategorySectionHeader(category: category)) {
+                                ForEach(categoryItems) { item in
+                                    ActiveItemRow(item: item)
+                                }
+                            }
                         }
                     }
                 }
                 
                 // Completion Button
                 VStack(spacing: 12) {
-                    let checkedCount = fridgeManager.shoppingList.checkedItems.count
+                    let checkedCount = inventoryManager.shoppingList.checkedItems.count
                     
                     Button(action: {
                         showingCompleteAlert = true
@@ -297,7 +321,7 @@ struct ActiveShoppingView: View {
                         .cornerRadius(10)
                     }
                     
-                    let restorableCount = fridgeManager.shoppingList.checkedItems.filter { !$0.isTemporary }.count
+                    let restorableCount = inventoryManager.shoppingList.checkedItems.filter { !$0.isTemporary }.count
                     if restorableCount > 0 {
                         Text("\(restorableCount) items will be restored to 100%")
                             .font(.caption)
@@ -328,14 +352,14 @@ struct ActiveShoppingView: View {
         .alert("Complete Shopping Trip", isPresented: $showingCompleteAlert) {
             Button("Cancel", role: .cancel) { }
             Button("Complete & Restore") {
-                fridgeManager.completeAndRestoreShopping()
+                inventoryManager.completeAndRestoreShopping()
             }
         } message: {
-            let checkedCount = fridgeManager.shoppingList.checkedItems.count
-            let restorableCount = fridgeManager.shoppingList.checkedItems.filter { !$0.isTemporary }.count
+            let checkedCount = inventoryManager.shoppingList.checkedItems.count
+            let restorableCount = inventoryManager.shoppingList.checkedItems.filter { !$0.isTemporary }.count
             
             if restorableCount > 0 && checkedCount > restorableCount {
-                Text("This will restore \(restorableCount) checked fridge items to 100% stock. Misc items will be cleared from the list.")
+                Text("This will restore \(restorableCount) checked inventory items to 100% stock. Misc items will be cleared from the list.")
             } else if restorableCount > 0 {
                 Text("This will restore \(restorableCount) checked items to 100% stock and clear the shopping list.")
             } else if checkedCount > 0 {
@@ -347,10 +371,25 @@ struct ActiveShoppingView: View {
     }
 }
 
+// MARK: - Category Section Header
+struct CategorySectionHeader: View {
+    let category: InventoryCategory
+    
+    var body: some View {
+        HStack {
+            Image(systemName: category.icon)
+                .foregroundColor(category.color)
+            Text(category.rawValue)
+                .font(.headline)
+                .foregroundColor(category.color)
+        }
+    }
+}
+
 // MARK: - Item Row Views
 struct GeneratingItemRow: View {
     @ObservedObject var item: ShoppingListItem
-    @EnvironmentObject var fridgeManager: FridgeManager
+    @EnvironmentObject var inventoryManager: InventoryManager
     
     var body: some View {
         HStack {
@@ -363,12 +402,12 @@ struct GeneratingItemRow: View {
                         Label("Misc Item", systemImage: "tag.fill")
                             .font(.caption)
                             .foregroundColor(.orange)
-                    } else if let fridgeItem = item.fridgeItem {
-                        Label(fridgeItem.section.rawValue, systemImage: fridgeItem.section.icon)
+                    } else if let inventoryItem = item.inventoryItem {
+                        Label(inventoryItem.subcategory.rawValue, systemImage: inventoryItem.subcategory.icon)
                             .font(.caption)
-                            .foregroundColor(fridgeItem.section.color)
+                            .foregroundColor(inventoryItem.subcategory.color)
                         
-                        Text("• \(fridgeItem.quantityPercentage)% left")
+                        Text("• \(inventoryItem.quantityPercentage)% left")
                             .font(.caption)
                             .foregroundColor(.red)
                     }
@@ -378,7 +417,7 @@ struct GeneratingItemRow: View {
             Spacer()
             
             Button(action: {
-                fridgeManager.removeItemFromShoppingList(item)
+                inventoryManager.removeItemFromShoppingList(item)
             }) {
                 Image(systemName: "minus.circle.fill")
                     .foregroundColor(.red)
@@ -404,12 +443,12 @@ struct ReadOnlyItemRow: View {
                         Label("Misc Item", systemImage: "tag.fill")
                             .font(.caption)
                             .foregroundColor(.orange)
-                    } else if let fridgeItem = item.fridgeItem {
-                        Label(fridgeItem.section.rawValue, systemImage: fridgeItem.section.icon)
+                    } else if let inventoryItem = item.inventoryItem {
+                        Label(inventoryItem.subcategory.rawValue, systemImage: inventoryItem.subcategory.icon)
                             .font(.caption)
-                            .foregroundColor(fridgeItem.section.color)
+                            .foregroundColor(inventoryItem.subcategory.color)
                         
-                        Text("• \(fridgeItem.quantityPercentage)% left")
+                        Text("• \(inventoryItem.quantityPercentage)% left")
                             .font(.caption)
                             .foregroundColor(.red)
                     }
@@ -424,7 +463,7 @@ struct ReadOnlyItemRow: View {
 
 struct ActiveItemRow: View {
     @ObservedObject var item: ShoppingListItem
-    @EnvironmentObject var fridgeManager: FridgeManager
+    @EnvironmentObject var inventoryManager: InventoryManager
     
     var body: some View {
         HStack {
@@ -457,7 +496,7 @@ struct ActiveItemRow: View {
                 
                 // Update local item
                 print("🔄 Updating local item state for: \(item.name)")
-                fridgeManager.shoppingList.toggleItem(item)
+                inventoryManager.shoppingList.toggleItem(item)
                 print("✅ Local item updated: \(item.name), new state: \(item.isChecked)")
             }) {
                 Image(systemName: item.isChecked ? "checkmark.circle.fill" : "circle")
@@ -477,12 +516,12 @@ struct ActiveItemRow: View {
                         Label("Misc Item", systemImage: "tag.fill")
                             .font(.caption)
                             .foregroundColor(.orange)
-                    } else if let fridgeItem = item.fridgeItem {
-                        Label(fridgeItem.section.rawValue, systemImage: fridgeItem.section.icon)
+                    } else if let inventoryItem = item.inventoryItem {
+                        Label(inventoryItem.subcategory.rawValue, systemImage: inventoryItem.subcategory.icon)
                             .font(.caption)
-                            .foregroundColor(fridgeItem.section.color)
+                            .foregroundColor(inventoryItem.subcategory.color)
                         
-                        Text("• \(fridgeItem.quantityPercentage)% left")
+                        Text("• \(inventoryItem.quantityPercentage)% left")
                             .font(.caption)
                             .foregroundColor(.red)
                     }
@@ -510,7 +549,7 @@ struct AddMiscItemView: View {
                         .font(.title2)
                         .fontWeight(.bold)
                     
-                    Text("Add items that aren't tracked in your fridge inventory.")
+                    Text("Add items that aren't tracked in your household inventory.")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
@@ -545,5 +584,5 @@ struct AddMiscItemView: View {
 
 #Preview {
     ShoppingListView()
-        .environmentObject(FridgeManager())
+        .environmentObject(InventoryManager())
 }

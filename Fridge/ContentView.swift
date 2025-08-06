@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct ContentView: View {
-    @EnvironmentObject var fridgeManager: FridgeManager
+    @EnvironmentObject var inventoryManager: InventoryManager
     @EnvironmentObject var settingsManager: SettingsManager
     @State private var selectedTab = 0
     @State private var showingAuthenticationAlert = false
@@ -12,10 +12,10 @@ struct ContentView: View {
                 AuthenticationView()
             } else {
                 TabView(selection: $selectedTab) {
-                    FridgeView(selectedTab: $selectedTab)
+                    InventoryView(selectedTab: $selectedTab)
                         .tabItem {
-                            Image(systemName: "refrigerator.fill")
-                            Text("Fridge")
+                            Image(systemName: "house.fill")
+                            Text("Home")
                         }
                         .tag(0)
                     
@@ -47,7 +47,7 @@ struct ContentView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
             // Refresh data when app comes to foreground to ensure UI reflects persisted state
-            fridgeManager.refreshData()
+            inventoryManager.refreshData()
         }
         .alert("Authentication Failed", isPresented: $showingAuthenticationAlert) {
             Button("Try Again") {
@@ -55,22 +55,20 @@ struct ContentView: View {
             }
             Button("Cancel", role: .cancel) { }
         } message: {
-            Text("Please authenticate to access your fridge data.")
+            Text("Please authenticate to access your household inventory data.")
         }
     }
 }
 
-struct FridgeView: View {
-    @EnvironmentObject var fridgeManager: FridgeManager
-    @State private var showingAddItem = false
-    @State private var selectedSection: FridgeSection = .main
+struct InventoryView: View {
+    @EnvironmentObject var inventoryManager: InventoryManager
     @State private var showingNewShoppingAlert = false
     @State private var refreshTrigger = UUID()
     @State private var navigationPath = NavigationPath()
     @Binding var selectedTab: Int
     
     private func getShoppingStateMessage() -> String {
-        switch fridgeManager.shoppingState {
+        switch inventoryManager.shoppingState {
         case .generating:
             return "You're currently creating a shopping list. Would you like to continue with it or start fresh?"
         case .listReady:
@@ -91,7 +89,7 @@ struct FridgeView: View {
                         Text("Total Items")
                             .font(.caption)
                             .foregroundColor(.secondary)
-                        Text("\(fridgeManager.totalItems)")
+                        Text("\(inventoryManager.totalItems)")
                             .font(.title2)
                             .fontWeight(.bold)
                     }
@@ -102,38 +100,47 @@ struct FridgeView: View {
                         Text("Low Stock")
                             .font(.caption)
                             .foregroundColor(.secondary)
-                        Text("\(fridgeManager.lowStockItemsCount)")
+                        Text("\(inventoryManager.lowStockItemsCount)")
                             .font(.title2)
                             .fontWeight(.bold)
-                            .foregroundColor(fridgeManager.lowStockItemsCount > 0 ? .red : .green)
+                            .foregroundColor(inventoryManager.lowStockItemsCount > 0 ? .red : .green)
                     }
                 }
                 .padding()
                 .background(Color(.systemGray6))
                 .id(refreshTrigger)
-                .onReceive(fridgeManager.objectWillChange) { _ in
+                .onReceive(inventoryManager.objectWillChange) { _ in
                     refreshTrigger = UUID()
                 }
                 
-                // Fridge Sections
-                List {
-                    ForEach(FridgeSection.allCases) { section in
-                        NavigationLink(value: section) {
-                            SectionRowView(section: section)
+                // Category Grid
+                ScrollView {
+                    LazyVGrid(columns: [
+                        GridItem(.flexible()),
+                        GridItem(.flexible())
+                    ], spacing: 20) {
+                        ForEach(InventoryCategory.allCases) { category in
+                            NavigationLink(value: category) {
+                                CategoryCardView(category: category)
+                            }
+                            .buttonStyle(PlainButtonStyle())
                         }
                     }
+                    .padding()
                 }
-                .listStyle(PlainListStyle())
             }
-            .navigationTitle("My Fridge")
+            .navigationTitle("Household Inventory")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     DarkModeToggle()
                 }
             }
-            .navigationDestination(for: FridgeSection.self) { section in
-                SectionDetailView(section: section)
+            .navigationDestination(for: InventoryCategory.self) { category in
+                CategoryDetailView(category: category)
+            }
+            .navigationDestination(for: InventorySubcategory.self) { subcategory in
+                SubcategoryDetailView(subcategory: subcategory)
             }
             .overlay(
                 // Floating Action Button
@@ -145,12 +152,12 @@ struct FridgeView: View {
                             print("🪄 Floating wand tapped")
                             
                             // Check if there's already an active shopping flow
-                            if fridgeManager.shoppingState != .empty {
+                            if inventoryManager.shoppingState != .empty {
                                 print("⚠️ Shopping flow already active, showing confirmation")
                                 showingNewShoppingAlert = true
                             } else {
                                 print("✅ Starting new shopping list")
-                                fridgeManager.startGeneratingShoppingList()
+                                inventoryManager.startGeneratingShoppingList()
                                 selectedTab = 1 // Switch to Shopping tab
                             }
                         }) {
@@ -174,40 +181,101 @@ struct FridgeView: View {
                     selectedTab = 1
                 }
                 Button("Start New", role: .destructive) {
-                    fridgeManager.cancelShopping()
-                    fridgeManager.startGeneratingShoppingList()
+                    inventoryManager.cancelShopping()
+                    inventoryManager.startGeneratingShoppingList()
                     selectedTab = 1
                 }
             } message: {
                 Text(getShoppingStateMessage())
             }
             .onChange(of: selectedTab) {
-                // Reset navigation to root when fridge tab is selected
+                // Reset navigation to root when home tab is selected
                 if selectedTab == 0 {
                     navigationPath = NavigationPath()
                 }
             }
         }
     }
-    
 }
 
-struct SectionRowView: View {
-    let section: FridgeSection
-    @EnvironmentObject var fridgeManager: FridgeManager
+struct CategoryCardView: View {
+    let category: InventoryCategory
+    @EnvironmentObject var inventoryManager: InventoryManager
+    @State private var refreshTrigger = UUID()
+    
+    var body: some View {
+        VStack(spacing: 16) {
+            // Large Icon
+            Image(systemName: category.icon)
+                .font(.system(size: 50))
+                .foregroundColor(category.color)
+            
+            // Category Name
+            Text(category.rawValue)
+                .font(.title2)
+                .fontWeight(.bold)
+                .multilineTextAlignment(.center)
+            
+            // Stats
+            let items = inventoryManager.itemsForCategory(category)
+            let lowStockCount = items.filter { $0.needsRestocking }.count
+            
+            VStack(spacing: 4) {
+                Text("\(items.count) items")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                
+                if lowStockCount > 0 {
+                    Text("\(lowStockCount) need restocking")
+                        .font(.caption)
+                        .foregroundColor(.red)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, minHeight: 160)
+        .padding()
+        .background(Color(.systemGray6))
+        .cornerRadius(16)
+        .id(refreshTrigger)
+        .onReceive(inventoryManager.objectWillChange) { _ in
+            refreshTrigger = UUID()
+        }
+    }
+}
+
+struct CategoryDetailView: View {
+    let category: InventoryCategory
+    @EnvironmentObject var inventoryManager: InventoryManager
+    
+    var body: some View {
+        List {
+            ForEach(category.subcategories) { subcategory in
+                NavigationLink(value: subcategory) {
+                    SubcategoryRowView(subcategory: subcategory)
+                }
+            }
+        }
+        .navigationTitle(category.rawValue)
+        .navigationBarTitleDisplayMode(.large)
+    }
+}
+
+struct SubcategoryRowView: View {
+    let subcategory: InventorySubcategory
+    @EnvironmentObject var inventoryManager: InventoryManager
     @State private var refreshTrigger = UUID()
     
     var body: some View {
         HStack {
-            Image(systemName: section.icon)
-                .foregroundColor(section.color)
+            Image(systemName: subcategory.icon)
+                .foregroundColor(subcategory.color)
                 .frame(width: 30)
             
             VStack(alignment: .leading, spacing: 4) {
-                Text(section.rawValue)
+                Text(subcategory.rawValue)
                     .font(.headline)
                 
-                let items = fridgeManager.itemsForSection(section)
+                let items = inventoryManager.itemsForSubcategory(subcategory)
                 let lowStockCount = items.filter { $0.needsRestocking }.count
                 
                 Text("\(items.count) items")
@@ -229,34 +297,34 @@ struct SectionRowView: View {
         }
         .padding(.vertical, 8)
         .id(refreshTrigger)
-        .onReceive(fridgeManager.objectWillChange) { _ in
+        .onReceive(inventoryManager.objectWillChange) { _ in
             refreshTrigger = UUID()
         }
     }
 }
 
-struct SectionDetailView: View {
-    let section: FridgeSection
-    @EnvironmentObject var fridgeManager: FridgeManager
+struct SubcategoryDetailView: View {
+    let subcategory: InventorySubcategory
+    @EnvironmentObject var inventoryManager: InventoryManager
     @State private var showingAddItem = false
     @State private var newItemName = ""
     
     var body: some View {
         List {
-            ForEach(fridgeManager.itemsForSection(section)) { item in
+            ForEach(inventoryManager.itemsForSubcategory(subcategory)) { item in
                 ItemRowView(item: item)
             }
             .onDelete(perform: deleteItems)
         }
-        .navigationTitle(section.rawValue)
+        .navigationTitle(subcategory.rawValue)
         .navigationBarTitleDisplayMode(.large)
         .navigationBarItems(trailing: Button("Add Item") {
             showingAddItem = true
         })
         .sheet(isPresented: $showingAddItem) {
-            AddItemView(section: section, newItemName: $newItemName) {
+            AddItemView(subcategory: subcategory, newItemName: $newItemName) {
                 if !newItemName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    fridgeManager.addCustomItem(name: newItemName.trimmingCharacters(in: .whitespacesAndNewlines), section: section)
+                    inventoryManager.addCustomItem(name: newItemName.trimmingCharacters(in: .whitespacesAndNewlines), subcategory: subcategory)
                     newItemName = ""
                 }
                 showingAddItem = false
@@ -266,10 +334,10 @@ struct SectionDetailView: View {
     
     private func deleteItems(offsets: IndexSet) {
         // Get a snapshot of items to avoid index issues
-        let items = fridgeManager.itemsForSection(section)
+        let items = inventoryManager.itemsForSubcategory(subcategory)
         
         // Create array of items to delete based on offsets
-        var itemsToDelete: [FridgeItem] = []
+        var itemsToDelete: [InventoryItem] = []
         for index in offsets {
             if index < items.count {
                 itemsToDelete.append(items[index])
@@ -279,15 +347,15 @@ struct SectionDetailView: View {
         // Delete items one by one with delay to prevent UI conflicts
         for (delayIndex, item) in itemsToDelete.enumerated() {
             DispatchQueue.main.asyncAfter(deadline: .now() + Double(delayIndex) * 0.1) {
-                fridgeManager.removeItem(item)
+                inventoryManager.removeItem(item)
             }
         }
     }
 }
 
 struct ItemRowView: View {
-    @ObservedObject var item: FridgeItem
-    @EnvironmentObject var fridgeManager: FridgeManager
+    @ObservedObject var item: InventoryItem
+    @EnvironmentObject var inventoryManager: InventoryManager
     @State private var isEditing = false
     
     var body: some View {
@@ -314,13 +382,13 @@ struct ItemRowView: View {
                 Slider(value: Binding(
                     get: { item.quantity },
                     set: { newValue in
-                        fridgeManager.updateItemQuantity(item, quantity: newValue)
+                        inventoryManager.updateItemQuantity(item, quantity: newValue)
                     }
                 ), in: 0...1, step: 0.05, onEditingChanged: { editing in
                     isEditing = editing
                     if !editing {
                         // User finished editing, persist to database
-                        fridgeManager.persistItemQuantity(item)
+                        inventoryManager.persistItemQuantity(item)
                     }
                 })
                 .accentColor(item.needsRestocking ? .red : .blue)
@@ -342,7 +410,7 @@ struct ItemRowView: View {
 }
 
 struct AddItemView: View {
-    let section: FridgeSection
+    let subcategory: InventorySubcategory
     @Binding var newItemName: String
     let onAdd: () -> Void
     @Environment(\.presentationMode) var presentationMode
@@ -356,7 +424,7 @@ struct AddItemView: View {
                         .font(.title2)
                         .fontWeight(.bold)
                     
-                    Text("Adding to \(section.rawValue)")
+                    Text("Adding to \(subcategory.rawValue)")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
@@ -455,6 +523,6 @@ struct AuthenticationView: View {
 
 #Preview {
     ContentView()
-        .environmentObject(FridgeManager())
+        .environmentObject(InventoryManager())
         .environmentObject(SettingsManager())
 }

@@ -55,7 +55,7 @@ class SettingsManager: ObservableObject {
         var error: NSError?
         
         if context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error) {
-            let reason = "Authenticate to access your fridge data"
+            let reason = "Authenticate to access your household inventory data"
             
             context.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, localizedReason: reason) { success, authenticationError in
                 completion(success)
@@ -63,7 +63,7 @@ class SettingsManager: ObservableObject {
         } else {
             // Fallback to device passcode
             if context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &error) {
-                let reason = "Authenticate with your device passcode to access your fridge data"
+                let reason = "Authenticate with your device passcode to access your household inventory data"
                 
                 context.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: reason) { success, authenticationError in
                     completion(success)
@@ -88,7 +88,7 @@ class SettingsManager: ObservableObject {
     }
     
     // MARK: - Data Management
-    func clearAllData(fridgeManager: FridgeManager) {
-        fridgeManager.clearAllData()
+    func clearAllData(inventoryManager: InventoryManager) {
+        inventoryManager.clearAllData()
     }
 }

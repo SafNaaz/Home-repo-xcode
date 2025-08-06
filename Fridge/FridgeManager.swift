@@ -2,8 +2,8 @@ import Foundation
 import SwiftUI
 import CoreData
 
-class FridgeManager: ObservableObject {
-    @Published var fridgeItems: [FridgeItem] = []
+class InventoryManager: ObservableObject {
+    @Published var inventoryItems: [InventoryItem] = []
     @Published var shoppingList = ShoppingList()
     @Published var shoppingState: ShoppingState = .empty
     
@@ -19,19 +19,19 @@ class FridgeManager: ObservableObject {
         let entities = persistenceController.fetchFridgeItems()
         print("📦 Found \(entities.count) items in Core Data")
         
-        fridgeItems = entities.compactMap { entity in
+        inventoryItems = entities.compactMap { entity in
             guard let name = entity.name,
                   let sectionRaw = entity.section,
-                  let section = FridgeSection(rawValue: sectionRaw),
+                  let subcategory = InventorySubcategory(rawValue: sectionRaw),
                   let entityId = entity.id else {
                 print("❌ Invalid entity data, skipping")
                 return nil
             }
             
-            let item = FridgeItem(
+            let item = InventoryItem(
                 name: name,
                 quantity: entity.quantity,
-                section: section,
+                subcategory: subcategory,
                 isCustom: entity.isCustom
             )
             item.id = entityId
@@ -39,6 +39,23 @@ class FridgeManager: ObservableObject {
             item.lastUpdated = entity.lastUpdated ?? Date()
             print("📦 Loaded item: \(item.name) with \(item.quantityPercentage)% stock (ID: \(entityId))")
             return item
+        }
+        
+        // If no items exist, create sample items
+        if inventoryItems.isEmpty {
+            print("📦 No items found, creating sample items...")
+            let sampleItems = DefaultItemsHelper.createSampleItems()
+            for item in sampleItems {
+                let entity = persistenceController.createFridgeItem(
+                    name: item.name,
+                    section: item.subcategory,
+                    quantity: item.quantity,
+                    isCustom: item.isCustom
+                )
+                item.id = entity.id ?? item.id
+                inventoryItems.append(item)
+            }
+            print("✅ Created \(inventoryItems.count) sample items")
         }
         
         loadShoppingList()
@@ -73,7 +90,7 @@ class FridgeManager: ObservableObject {
             let item = ShoppingListItem(
                 name: entity.name ?? "",
                 isTemporary: entity.isTemporary,
-                fridgeItem: fridgeItems.first { $0.id == entity.fridgeItemId }
+                inventoryItem: inventoryItems.first { $0.id == entity.fridgeItemId }
             )
             item.id = entity.id ?? UUID()
             item.isChecked = entity.isChecked
@@ -100,17 +117,21 @@ class FridgeManager: ObservableObject {
         // Core Data saves automatically through PersistenceController
     }
     
-    // MARK: - Fridge Items Management
-    func itemsForSection(_ section: FridgeSection) -> [FridgeItem] {
-        return fridgeItems.filter { $0.section == section }
+    // MARK: - Inventory Items Management
+    func itemsForCategory(_ category: InventoryCategory) -> [InventoryItem] {
+        return inventoryItems.filter { $0.category == category }
     }
     
-    func addCustomItem(name: String, section: FridgeSection) {
-        print("➕ Adding custom item: \(name) to \(section.rawValue)")
+    func itemsForSubcategory(_ subcategory: InventorySubcategory) -> [InventoryItem] {
+        return inventoryItems.filter { $0.subcategory == subcategory }
+    }
+    
+    func addCustomItem(name: String, subcategory: InventorySubcategory) {
+        print("➕ Adding custom item: \(name) to \(subcategory.rawValue)")
         
         DispatchQueue.main.async {
-            let entity = self.persistenceController.createFridgeItem(name: name, section: section, quantity: 1.0, isCustom: true)
-            let newItem = FridgeItem(name: name, quantity: 1.0, section: section, isCustom: true)
+            let entity = self.persistenceController.createFridgeItem(name: name, section: subcategory, quantity: 1.0, isCustom: true)
+            let newItem = InventoryItem(name: name, quantity: 1.0, subcategory: subcategory, isCustom: true)
             
             // Ensure the IDs match exactly
             if let entityId = entity.id {
@@ -120,12 +141,12 @@ class FridgeManager: ObservableObject {
                 print("❌ Failed to get entity ID for: \(name)")
             }
             
-            self.fridgeItems.append(newItem)
+            self.inventoryItems.append(newItem)
             print("✅ Added \(name) to local array")
         }
     }
     
-    func removeItem(_ item: FridgeItem) {
+    func removeItem(_ item: InventoryItem) {
         print("🗑️ Removing item: \(item.name)")
         
         // Use DispatchQueue to ensure proper UI updates
@@ -140,22 +161,22 @@ class FridgeManager: ObservableObject {
             }
             
             // Remove from local array on main thread
-            self.fridgeItems.removeAll { $0.id == item.id }
+            self.inventoryItems.removeAll { $0.id == item.id }
             print("✅ Local item removed: \(item.name)")
             
-            // Also remove any shopping list items that reference this fridge item
+            // Also remove any shopping list items that reference this inventory item
             self.removeFromShoppingListIfExists(item)
         }
     }
     
-    private func removeFromShoppingListIfExists(_ fridgeItem: FridgeItem) {
-        // Find shopping list items that reference this fridge item
+    private func removeFromShoppingListIfExists(_ inventoryItem: InventoryItem) {
+        // Find shopping list items that reference this inventory item
         let itemsToRemove = shoppingList.items.filter { shoppingItem in
-            shoppingItem.fridgeItem?.id == fridgeItem.id
+            shoppingItem.inventoryItem?.id == inventoryItem.id
         }
         
         if !itemsToRemove.isEmpty {
-            print("🛒 Found \(itemsToRemove.count) shopping list items to remove for: \(fridgeItem.name)")
+            print("🛒 Found \(itemsToRemove.count) shopping list items to remove for: \(inventoryItem.name)")
             
             for shoppingItem in itemsToRemove {
                 // Delete from Core Data
@@ -184,7 +205,7 @@ class FridgeManager: ObservableObject {
         }
     }
     
-    func updateItemQuantity(_ item: FridgeItem, quantity: Double) {
+    func updateItemQuantity(_ item: InventoryItem, quantity: Double) {
         // Update local item immediately for instant UI response
         item.updateQuantity(quantity)
         print("🔄 Local item updated immediately: \(item.name) to \(Int(quantity * 100))%")
@@ -193,7 +214,7 @@ class FridgeManager: ObservableObject {
         objectWillChange.send()
     }
     
-    func persistItemQuantity(_ item: FridgeItem) {
+    func persistItemQuantity(_ item: InventoryItem) {
         print("💾 Persisting item quantity: \(item.name) at \(Int(item.quantity * 100))% (ID: \(item.id))")
         
         // Handle Core Data persistence asynchronously
@@ -228,12 +249,12 @@ class FridgeManager: ObservableObject {
         shoppingList.items.removeAll()
         
         // Add items that need attention (≤25%) - sorted by urgency
-        let attentionItems = fridgeItems.filter { $0.needsRestocking }.sorted { $0.quantity < $1.quantity }
+        let attentionItems = inventoryItems.filter { $0.needsRestocking }.sorted { $0.quantity < $1.quantity }
         print("⚠️ Attention items found: \(attentionItems.count)")
         
         for item in attentionItems {
             let entity = persistenceController.createShoppingItem(name: item.name, fridgeItemId: item.id, isTemporary: false)
-            let shoppingItem = ShoppingListItem(name: item.name, fridgeItem: item)
+            let shoppingItem = ShoppingListItem(name: item.name, inventoryItem: item)
             shoppingItem.id = entity.id ?? UUID()
             shoppingList.addItem(shoppingItem)
             print("➕ Added attention item: \(item.name) (\(item.quantityPercentage)%)")
@@ -262,15 +283,15 @@ class FridgeManager: ObservableObject {
     func completeAndRestoreShopping() {
         print("✅ Completing shopping trip and restoring items...")
         
-        // Update fridge items that were purchased
+        // Update inventory items that were purchased
         for item in shoppingList.items where item.isChecked && !item.isTemporary {
-            if let fridgeItem = item.fridgeItem {
+            if let inventoryItem = item.inventoryItem {
                 let entities = persistenceController.fetchFridgeItems()
-                if let entity = entities.first(where: { $0.id == fridgeItem.id }) {
+                if let entity = entities.first(where: { $0.id == inventoryItem.id }) {
                     persistenceController.restockFridgeItem(entity)
                 }
-                fridgeItem.restockToFull()
-                print("🔄 Restored \(fridgeItem.name) to 100%")
+                inventoryItem.restockToFull()
+                print("🔄 Restored \(inventoryItem.name) to 100%")
             }
         }
         
@@ -292,9 +313,9 @@ class FridgeManager: ObservableObject {
         print("✅ Shopping cancelled")
     }
     
-    private func getFrequentlyPurchasedItems() -> [FridgeItem] {
+    private func getFrequentlyPurchasedItems() -> [InventoryItem] {
         // Sort items by purchase frequency (number of times purchased)
-        let sortedItems = fridgeItems.sorted { item1, item2 in
+        let sortedItems = inventoryItems.sorted { item1, item2 in
             item1.purchaseHistory.count > item2.purchaseHistory.count
         }
         
@@ -343,32 +364,43 @@ class FridgeManager: ObservableObject {
     
     // MARK: - Statistics
     var totalItems: Int {
-        fridgeItems.count
+        inventoryItems.count
     }
     
     var lowStockItemsCount: Int {
-        fridgeItems.filter { $0.needsRestocking }.count
+        inventoryItems.filter { $0.needsRestocking }.count
     }
     
     var averageStockLevel: Double {
-        guard !fridgeItems.isEmpty else { return 0 }
-        let totalStock = fridgeItems.reduce(0) { $0 + $1.quantity }
-        return totalStock / Double(fridgeItems.count)
+        guard !inventoryItems.isEmpty else { return 0 }
+        let totalStock = inventoryItems.reduce(0) { $0 + $1.quantity }
+        return totalStock / Double(inventoryItems.count)
     }
     
-    func itemsNeedingAttention() -> [FridgeItem] {
-        return fridgeItems.filter { $0.needsRestocking }.sorted { $0.quantity < $1.quantity }
+    func itemsNeedingAttention() -> [InventoryItem] {
+        return inventoryItems.filter { $0.needsRestocking }.sorted { $0.quantity < $1.quantity }
     }
     
     // MARK: - Data Management
     func clearAllData() {
         persistenceController.clearAllData()
-        fridgeItems.removeAll()
+        inventoryItems.removeAll()
         shoppingList.items.removeAll()
     }
     
     func resetToDefaults() {
-        // Just clear all data - no more pre-populated items
+        // Clear all data and recreate sample items
         clearAllData()
+        let sampleItems = DefaultItemsHelper.createSampleItems()
+        for item in sampleItems {
+            let entity = persistenceController.createFridgeItem(
+                name: item.name,
+                section: item.subcategory,
+                quantity: item.quantity,
+                isCustom: item.isCustom
+            )
+            item.id = entity.id ?? item.id
+            inventoryItems.append(item)
+        }
     }
 }

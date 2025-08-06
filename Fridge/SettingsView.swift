@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct SettingsView: View {
-    @EnvironmentObject var fridgeManager: FridgeManager
+    @EnvironmentObject var inventoryManager: InventoryManager
     @EnvironmentObject var settingsManager: SettingsManager
     @State private var showingClearDataAlert = false
     
@@ -93,13 +93,13 @@ struct SettingsView: View {
                     .padding(.vertical, 4)
                     
                     HStack {
-                        Image(systemName: "refrigerator.fill")
+                        Image(systemName: "house.fill")
                             .foregroundColor(.green)
                             .frame(width: 25)
                         
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Total Items")
-                            Text("\(fridgeManager.totalItems) items in fridge")
+                            Text("\(inventoryManager.totalItems) items in inventory")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
@@ -114,16 +114,16 @@ struct SettingsView: View {
         .alert("Clear All Data", isPresented: $showingClearDataAlert) {
             Button("Cancel", role: .cancel) { }
             Button("Clear All", role: .destructive) {
-                settingsManager.clearAllData(fridgeManager: fridgeManager)
+                settingsManager.clearAllData(inventoryManager: inventoryManager)
             }
         } message: {
-            Text("This will permanently delete all your fridge items and shopping lists. This action cannot be undone.")
+            Text("This will permanently delete all your household inventory items and shopping lists. This action cannot be undone.")
         }
     }
 }
 
 #Preview {
     SettingsView()
-        .environmentObject(FridgeManager())
+        .environmentObject(InventoryManager())
         .environmentObject(SettingsManager())
 }

@@ -51,7 +51,7 @@ class PersistenceController: ObservableObject {
         }
     }
     
-    func createFridgeItem(name: String, section: FridgeSection, quantity: Double = 1.0, isCustom: Bool = true) -> FridgeItemEntity {
+    func createFridgeItem(name: String, section: InventorySubcategory, quantity: Double = 1.0, isCustom: Bool = true) -> FridgeItemEntity {
         let context = container.viewContext
         let item = FridgeItemEntity(context: context)
         

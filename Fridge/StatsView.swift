@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct StatsView: View {
-    @EnvironmentObject var fridgeManager: FridgeManager
+    @EnvironmentObject var inventoryManager: InventoryManager
     
     var body: some View {
         NavigationView {
@@ -14,49 +14,49 @@ struct StatsView: View {
                     ], spacing: 16) {
                         StatCard(
                             title: "Total Items",
-                            value: "\(fridgeManager.totalItems)",
-                            icon: "refrigerator.fill",
+                            value: "\(inventoryManager.totalItems)",
+                            icon: "house.fill",
                             color: .blue
                         )
                         
                         StatCard(
                             title: "Low Stock",
-                            value: "\(fridgeManager.lowStockItemsCount)",
+                            value: "\(inventoryManager.lowStockItemsCount)",
                             icon: "exclamationmark.triangle.fill",
-                            color: fridgeManager.lowStockItemsCount > 0 ? .red : .green
+                            color: inventoryManager.lowStockItemsCount > 0 ? .red : .green
                         )
                         
                         StatCard(
                             title: "Avg Stock",
-                            value: "\(Int(fridgeManager.averageStockLevel * 100))%",
+                            value: "\(Int(inventoryManager.averageStockLevel * 100))%",
                             icon: "chart.bar.fill",
                             color: .orange
                         )
                         
                         StatCard(
                             title: "Shopping Items",
-                            value: "\(fridgeManager.shoppingList.items.count)",
+                            value: "\(inventoryManager.shoppingList.items.count)",
                             icon: "cart.fill",
                             color: .purple
                         )
                     }
                     .padding(.horizontal)
                     
-                    // Section Breakdown
+                    // Category Breakdown
                     VStack(alignment: .leading, spacing: 16) {
-                        Text("Section Breakdown")
+                        Text("Category Breakdown")
                             .font(.title2)
                             .fontWeight(.bold)
                             .padding(.horizontal)
                         
-                        ForEach(FridgeSection.allCases) { section in
-                            SectionStatsRow(section: section)
+                        ForEach(InventoryCategory.allCases) { category in
+                            CategoryStatsRow(category: category)
                         }
                     }
                     .padding(.vertical)
                     
                     // Items Needing Attention
-                    let itemsNeedingAttention = fridgeManager.itemsNeedingAttention()
+                    let itemsNeedingAttention = inventoryManager.itemsNeedingAttention()
                     if !itemsNeedingAttention.isEmpty {
                         VStack(alignment: .leading, spacing: 16) {
                             Text("Items Needing Attention")
@@ -105,22 +105,22 @@ struct StatCard: View {
     }
 }
 
-struct SectionStatsRow: View {
-    let section: FridgeSection
-    @EnvironmentObject var fridgeManager: FridgeManager
+struct CategoryStatsRow: View {
+    let category: InventoryCategory
+    @EnvironmentObject var inventoryManager: InventoryManager
     
     var body: some View {
-        let items = fridgeManager.itemsForSection(section)
+        let items = inventoryManager.itemsForCategory(category)
         let lowStockCount = items.filter { $0.needsRestocking }.count
         let avgStock = items.isEmpty ? 0 : items.reduce(0) { $0 + $1.quantity } / Double(items.count)
         
         HStack {
-            Image(systemName: section.icon)
-                .foregroundColor(section.color)
+            Image(systemName: category.icon)
+                .foregroundColor(category.color)
                 .frame(width: 30)
             
             VStack(alignment: .leading, spacing: 4) {
-                Text(section.rawValue)
+                Text(category.rawValue)
                     .font(.headline)
                 
                 HStack {
@@ -159,19 +159,19 @@ struct SectionStatsRow: View {
 }
 
 struct AttentionItemRow: View {
-    @ObservedObject var item: FridgeItem
+    @ObservedObject var item: InventoryItem
     
     var body: some View {
         HStack {
-            Image(systemName: item.section.icon)
-                .foregroundColor(item.section.color)
+            Image(systemName: item.subcategory.icon)
+                .foregroundColor(item.subcategory.color)
                 .frame(width: 25)
             
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.name)
                     .font(.headline)
                 
-                Text(item.section.rawValue)
+                Text(item.subcategory.rawValue)
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -199,5 +199,5 @@ struct AttentionItemRow: View {
 
 #Preview {
     StatsView()
-        .environmentObject(FridgeManager())
+        .environmentObject(InventoryManager())
 }
